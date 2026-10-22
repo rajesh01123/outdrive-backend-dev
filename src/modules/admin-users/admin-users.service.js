@@ -1,0 +1,94 @@
+import { Op } from 'sequelize';
+import { sequelize } from '../../config/database.js';
+import { Device, User, UserSession } from '../../database/models/index.js';
+import { AppError } from '../../shared/utils/app-error.js';
+import { publicProfilePictureUrl } from '../../shared/utils/serializers.js';
+
+export const USERS_PAGE_LIMIT = 10;
+
+// The admin panel calls a blocked account "inactive"; app login checks keep using `blocked`.
+const toDbStatus = (status) => (status === 'inactive' ? 'blocked' : status);
+const toAdminStatus = (status) => (status === 'blocked' ? 'inactive' : status);
+
+const adminUserPayload = (user) => ({
+  id: Number(user.id),
+  name: user.name,
+  mobile: user.mobile,
+  country_code: user.countryCode,
+  profile_picture: publicProfilePictureUrl(user.profilePicture),
+  gender: user.gender || '',
+  wallet_balance: Number(user.walletBalance || 0),
+  emergency_contact_name: user.emergencyContactName || '',
+  emergency_contact_number: user.emergencyContactNumber || '',
+  locale: user.locale || 'en',
+  status: toAdminStatus(user.status),
+  joined_at: user.createdAt
+});
+
+const findUser = async (id, options = {}) => {
+  const user = await User.findByPk(id, options);
+  if (!user || user.status === 'deleted') throw new AppError('user_not_found', 404);
+  return user;
+};
+
+const revokeSessions = (userId, transaction) =>
+  UserSession.update({ revokedAt: new Date() }, { where: { userId, revokedAt: null }, transaction });
+
+export const getUserStats = async () => {
+  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const [active, inactive, newThisWeek] = await Promise.all([
+    User.count({ where: { status: 'active' } }),
+    User.count({ where: { status: 'blocked' } }),
+    User.count({ where: { status: { [Op.in]: ['active', 'blocked'] }, createdAt: { [Op.gte]: weekAgo } } })
+  ]);
+  return { total: active + inactive, active, inactive, new_this_week: newThisWeek };
+};
+
+export const listUsers = async ({ page, search, status }) => {
+  const where = { status: status ? toDbStatus(status) : { [Op.in]: ['active', 'blocked'] } };
+  if (search) {
+    const like = `%${search.replace(/[\\%_]/g, (match) => `\\${match}`)}%`;
+    where[Op.or] = [{ name: { [Op.like]: like } }, { mobile: { [Op.like]: like } }];
+  }
+  const { rows, count } = await User.findAndCountAll({
+    where,
+    order: [['createdAt', 'DESC'], ['id', 'DESC']],
+    limit: USERS_PAGE_LIMIT,
+    offset: (page - 1) * USERS_PAGE_LIMIT
+  });
+  return {
+    users: rows.map(adminUserPayload),
+    pagination: { page, limit: USERS_PAGE_LIMIT, total: count, total_pages: Math.max(1, Math.ceil(count / USERS_PAGE_LIMIT)) }
+  };
+};
+
+export const getUser = async (id) => adminUserPayload(await findUser(id));
+
+export const updateUser = async ({ id, body }) => {
+  const user = await findUser(id);
+  const values = {};
+  if (body.name !== undefined) values.name = body.name;
+  if (body.gender !== undefined) values.gender = body.gender || null;
+  if (body.emergency_contact_name !== undefined) values.emergencyContactName = body.emergency_contact_name || null;
+  if (body.emergency_contact_number !== undefined) values.emergencyContactNumber = body.emergency_contact_number || null;
+  if (Object.keys(values).length) await user.update(values);
+  return adminUserPayload(user);
+};
+
+export const updateUserStatus = ({ id, status }) =>
+  sequelize.transaction(async (transaction) => {
+    const user = await findUser(id, { transaction, lock: transaction.LOCK.UPDATE });
+    await user.update({ status: toDbStatus(status) }, { transaction });
+    // An inactive user is signed out of every device straight away.
+    if (status === 'inactive') await revokeSessions(user.id, transaction);
+    return adminUserPayload(user);
+  });
+
+export const deleteUser = ({ id, reason }) =>
+  sequelize.transaction(async (transaction) => {
+    const user = await findUser(id, { transaction, lock: transaction.LOCK.UPDATE });
+    await revokeSessions(user.id, transaction);
+    await Device.update({ userId: null }, { where: { userId: user.id }, transaction });
+    await user.update({ status: 'deleted', deleteReason: reason }, { transaction });
+    await user.destroy({ transaction });
+  });

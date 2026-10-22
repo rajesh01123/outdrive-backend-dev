@@ -7,6 +7,7 @@ import { env } from '../../config/env.js';
 import { AdminOtpVerification, AdminSession } from '../../database/models/index.js';
 import { AppError } from '../../shared/utils/app-error.js';
 import { latestAdminOtp } from './admin.repository.js';
+import { publicProfilePictureUrl } from '../../shared/utils/serializers.js';
 
 const hash = (value) => crypto.createHash('sha256').update(value).digest('hex');
 
@@ -15,7 +16,7 @@ const adminPayload = (admin) => ({
   name: admin.name,
   email: admin.email,
   mobile: admin.mobile || '',
-  profile_picture: admin.profilePicture || '',
+  profile_picture: publicProfilePictureUrl(admin.profilePicture),
   role: admin.role,
   two_factor_enabled: Boolean(admin.twoFactorEnabled),
   two_factor_method: admin.twoFactorMethod || 'email'

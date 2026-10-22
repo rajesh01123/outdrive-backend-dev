@@ -8,10 +8,13 @@ export const notFoundHandler = (req, res) => failure(res, { status: 404, message
 export const errorHandler = (error, req, res, next) => {
   if (error instanceof AppError) return failure(res, { status: error.status, message: error.message, data: error.data });
   if (error instanceof multer.MulterError) {
-    const message = error.code === 'LIMIT_FILE_SIZE' ? 'profile_picture_too_large' : 'upload_error';
+    const message = error.code === 'LIMIT_FILE_SIZE' ? `${error.field || 'file'}_too_large` : 'upload_error';
     return failure(res, { status: 422, message });
   }
-  if (error instanceof UniqueConstraintError) return failure(res, { status: 409, message: 'mobile_already_registered' });
+  if (error instanceof UniqueConstraintError) {
+    const message = Object.keys(error.fields || {}).some((field) => field.includes('slug')) ? 'service_slug_exists' : 'mobile_already_registered';
+    return failure(res, { status: 409, message });
+  }
   if (error instanceof ValidationError) return failure(res, { status: 422, message: 'validation_error' });
 
   console.error(error);
