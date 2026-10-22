@@ -1,0 +1,27 @@
+{
+  "name": "outdrive-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "nodemon src/server.js",
+    "start": "node src/server.js",
+    "db:migrate": "node src/database/migrate.js",
+    "db:seed": "node src/database/seeds/admin.seed.js",
+    "check": "node --check src/server.js && node --check src/modules/auth/auth.service.js && node --check src/modules/user/user.service.js && node --check src/modules/admin/admin.service.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.0.2",
+    "mysql2": "^3.12.0",
+    "sequelize": "^6.37.5",
+    "swagger-ui-express": "^5.0.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.9"
+  }
+}
