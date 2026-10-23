@@ -18,6 +18,7 @@ import { BookingParcel } from './booking-parcel.model.js';
 import { RecentSearch } from './recent-search.model.js';
 import { FavouriteLocation } from './favourite-location.model.js';
 import { Banner } from './banner.model.js';
+import { CmsPage, Faq, SupportContact } from './cms.models.js';
 
 User.hasMany(UserSession, { foreignKey: 'userId', as: 'sessions' });
 UserSession.belongsTo(User, { foreignKey: 'userId', as: 'user' });
@@ -54,9 +55,10 @@ BookingParcel.belongsTo(Booking, { foreignKey: 'bookingId', as: 'booking' });
 
 User.hasMany(RecentSearch, { foreignKey: 'userId', as: 'recentSearches' });
 User.hasMany(FavouriteLocation, { foreignKey: 'userId', as: 'favouriteLocations' });
+CmsPage.belongsTo(Admin, { foreignKey: 'updatedBy', as: 'editor' });
 
 export {
   User, OtpVerification, UserSession, Device, Admin, Driver, AdminSession, AdminOtpVerification,
   Service, Zone, ZoneService, VehicleType, ServiceVehicleType, ZoneVehicleFare, FareHistory, Booking, BookingParcel,
-  RecentSearch, FavouriteLocation, Banner
+  RecentSearch, FavouriteLocation, Banner, CmsPage, Faq, SupportContact
 };

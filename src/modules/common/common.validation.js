@@ -27,3 +27,10 @@ export const serviceAvailabilityRequest = (req) => {
 };
 
 export const cancelPolicyRequest = (req) => moduleKeyField(req.query);
+
+// CMS lists: audience=user|driver narrows to that app's content (plus content for everyone).
+export const cmsAudienceRequest = (req) => {
+  const audience = text(req.query.audience);
+  if (audience && !['user', 'driver'].includes(audience)) validationError('audience', 'audience must be user or driver');
+  req.query.audience = audience;
+};

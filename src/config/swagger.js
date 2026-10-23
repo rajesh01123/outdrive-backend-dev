@@ -398,3 +398,58 @@ Object.assign(openApiSpec.paths, {
   '/admin/banners/reorder': { post: { tags: ['Admin banners'], summary: 'Save display order; ids must list every banner once', security: adminBearer, requestBody: adminJsonBody({ type: 'object', required: ['ids'], properties: { ids: { type: 'array', items: { type: 'integer' } } } }), responses: { 200: adminSuccess('banners_reordered', { banners: [adminBannerExample] }) } } },
   '/admin/banners/{id}/delete': { post: { tags: ['Admin banners'], summary: 'Delete a banner and its image', security: adminBearer, parameters: idParam(), responses: { 200: adminSuccess('banner_deleted', { id: 1 }), 404: { description: 'banner_not_found' } } } }
 });
+
+// ---------- Content (CMS): WebView pages, FAQs, support contacts + admin ----------
+const cmsHost = env.appUrl;
+const cmsAudience = [{ name: 'audience', in: 'query', schema: { type: 'string', enum: ['user', 'driver'], default: 'user' } }];
+const cmsAudienceField = { type: 'string', enum: ['all', 'user', 'driver'], default: 'all' };
+const adminCmsPage = { id: 11, title: 'Safety Guidelines', slug: 'safety-guidelines', content: '<h2>Before the ride</h2><p>Match the <strong>vehicle number</strong>.</p>', audience: 'user', status: 'draft', sort_order: 7, url: `${cmsHost}/pages/safety-guidelines`, updated_at: '2026-10-23T11:52:11.000Z', updated_by: { id: 49, name: 'Rajesh Admin' } };
+const adminFaq = { id: 11, question: 'How do I change my pickup point?', answer: 'Before the driver arrives, tap the pickup address on the trip screen and move the pin.', category: 'Booking', audience: 'user', status: 'published', sort_order: 10, updated_at: '2026-10-23T11:52:11.599Z' };
+const adminContact = { id: 7, type: 'whatsapp', label: 'Driver helpline', value: '+91 98765 43210', action_url: 'https://wa.me/919876543210', audience: 'driver', status: 'active', sort_order: 6, updated_at: '2026-10-23T11:52:11.642Z' };
+const cmsBody = (properties) => (required) => adminJsonBody({ type: 'object', required, properties });
+const cmsPageBody = cmsBody({ title: { type: 'string', minLength: 2, maxLength: 120, example: 'Safety Guidelines' }, slug: { type: 'string', description: 'Create only; made from the title when empty; locked after create', example: 'safety-guidelines' }, content: { type: 'string', description: 'HTML; sanitized (no scripts, styles or images; h1 becomes h2)', example: adminCmsPage.content }, audience: cmsAudienceField, status: { type: 'string', enum: ['draft', 'published'], default: 'draft' } });
+const cmsFaqBody = cmsBody({ question: { type: 'string', minLength: 5, maxLength: 255, example: adminFaq.question }, answer: { type: 'string', maxLength: 5000, description: 'Plain text; line breaks kept', example: adminFaq.answer }, category: { type: 'string', maxLength: 60, default: 'General', example: 'Booking' }, audience: cmsAudienceField, status: { type: 'string', enum: ['published', 'draft'], default: 'published' } });
+const cmsContactBody = cmsBody({ type: { type: 'string', enum: ['phone', 'whatsapp', 'email', 'address', 'website', 'hours'], example: 'whatsapp' }, label: { type: 'string', maxLength: 60, example: 'Driver helpline' }, value: { type: 'string', maxLength: 255, description: 'phone/whatsapp: 10–15 digits; email: valid address; website: http(s) URL', example: '+91 98765 43210' }, audience: cmsAudienceField, status: { type: 'string', enum: ['active', 'inactive'], default: 'active' } });
+
+// The three admin resources share the same six routes; `message` is the response-key prefix (page, faq, support_contact).
+const cmsAdminPaths = ({ base, key, listKey, message, noun, example, body, required, statuses, list }) => ({
+  [base]: {
+    get: { tags: ['Admin content'], summary: `List ${noun}s with stats`, security: adminBearer, responses: { 200: adminSuccess('OK', list) } },
+    post: { tags: ['Admin content'], summary: `Create a ${noun} (added at the end)`, security: adminBearer, requestBody: body(required), responses: { 201: adminSuccess(`${message}_created`, { [key]: example }), 403: { description: 'admin_forbidden (support role)' }, 422: { description: 'validation_error (data.errors.<field>)' }, ...(key === 'page' ? { 409: { description: 'page_slug_exists' } } : {}) } }
+  },
+  [`${base}/{id}/update`]: { post: { tags: ['Admin content'], summary: `Edit a ${noun}; send only the changed fields${key === 'page' ? ' (sending slug returns 422 page_slug_locked)' : ''}`, security: adminBearer, parameters: idParam(), requestBody: body([]), responses: { 200: adminSuccess(`${message}_updated`, { [key]: example }), 404: { description: `${message}_not_found` }, 422: { description: 'validation_error' } } } },
+  [`${base}/{id}/status`]: { post: { tags: ['Admin content'], summary: statuses.join(' or '), security: adminBearer, parameters: idParam(), requestBody: adminJsonBody({ type: 'object', required: ['status'], properties: { status: { type: 'string', enum: statuses } } }), responses: { 200: adminSuccess(`${message}_status_updated`, { [key]: example }), 404: { description: `${message}_not_found` } } } },
+  [`${base}/reorder`]: { post: { tags: ['Admin content'], summary: `Save ${noun} order; ids must list every ${noun} once`, security: adminBearer, requestBody: adminJsonBody({ type: 'object', required: ['ids'], properties: { ids: { type: 'array', items: { type: 'integer' } } } }), responses: { 200: adminSuccess(`${message}s_reordered`, { [listKey]: [example] }) } } },
+  [`${base}/{id}/delete`]: { post: { tags: ['Admin content'], summary: `Delete a ${noun}`, security: adminBearer, parameters: idParam(), responses: { 200: adminSuccess(`${message}_deleted`, { id: example.id }), 404: { description: `${message}_not_found` } } } }
+});
+
+openApiSpec.tags.push(
+  { name: 'Content (app)', description: `WebView pages: ${cmsHost}/pages/<slug> (?theme=dark, ?header=0; faq and help-and-support also take ?audience=driver). No token needed.` },
+  { name: 'Admin content', description: 'Pages, FAQs and support contacts. View: all roles; changes: super_admin, operations' }
+);
+
+Object.assign(openApiSpec.paths, {
+  '/common/pages': { get: {
+    tags: ['Content (app)'], summary: 'CMS-01 — published pages for the app menu, plus the FAQ and Help & Support pages', parameters: cmsAudience,
+    responses: { 200: userOk('OK', [
+      { slug: 'privacy-policy', title: 'Privacy Policy', type: 'page', url: `${cmsHost}/pages/privacy-policy`, updated_at: '2026-10-23T11:42:13.000Z' },
+      { slug: 'faq', title: 'FAQs', type: 'faq', url: `${cmsHost}/pages/faq`, updated_at: '2026-10-23T11:44:00.000Z' },
+      { slug: 'help-and-support', title: 'Help & Support', type: 'support', url: `${cmsHost}/pages/help-and-support`, updated_at: '2026-10-23T11:42:13.000Z' }
+    ]), 422: { description: 'validation_error (audience)' } }
+  } },
+  '/common/pages/{slug}': { get: {
+    tags: ['Content (app)'], summary: 'CMS-02 — one published page as JSON (sanitized HTML)', parameters: [{ name: 'slug', in: 'path', required: true, schema: { type: 'string', example: 'refund-policy' } }],
+    responses: { 200: userOk('OK', { slug: 'refund-policy', title: 'Refund Policy', content: '<p>If you were charged incorrectly, we will make it right.</p>', url: `${cmsHost}/pages/refund-policy`, updated_at: '2026-10-23T11:42:13.000Z' }), 404: { description: 'page_not_found (unknown, draft, or faq / help-and-support)' } }
+  } },
+  '/common/faqs': { get: {
+    tags: ['Content (app)'], summary: 'CMS-03 — published FAQs (answer is plain text)', parameters: cmsAudience,
+    responses: { 200: userOk('OK', [{ id: 'faq_1', question: 'How do I book a ride?', answer: 'Open the app, choose a service such as One Way, set your pickup and drop, pick a vehicle and tap Book. You will see the fare before you confirm.', category: 'Booking' }]), 422: { description: 'validation_error (audience)' } }
+  } },
+  '/common/support-contacts': { get: {
+    tags: ['Content (app)'], summary: 'CMS-04 — active support contacts; open action_url with url_launcher', parameters: cmsAudience,
+    responses: { 200: userOk('OK', [{ type: 'email', label: 'Email support', value: 'support@outdrive.app', action_url: 'mailto:support@outdrive.app' }, { type: 'address', label: 'Office', value: 'Indore, Madhya Pradesh, India', action_url: 'https://www.google.com/maps/search/?api=1&query=Indore%2C%20Madhya%20Pradesh%2C%20India' }]), 422: { description: 'validation_error (audience)' } }
+  } },
+  ...cmsAdminPaths({ base: '/admin/cms/pages', key: 'page', listKey: 'pages', message: 'page', noun: 'page', example: adminCmsPage, body: cmsPageBody, required: ['title', 'content'], statuses: ['published', 'draft'], list: { stats: { total: 6, published: 6, draft: 0 }, built_in: [{ slug: 'faq', title: 'FAQs', url: `${cmsHost}/pages/faq` }, { slug: 'help-and-support', title: 'Help & Support', url: `${cmsHost}/pages/help-and-support` }], pages: [adminCmsPage] } }),
+  ...cmsAdminPaths({ base: '/admin/cms/faqs', key: 'faq', listKey: 'faqs', message: 'faq', noun: 'FAQ', example: adminFaq, body: cmsFaqBody, required: ['question', 'answer'], statuses: ['published', 'draft'], list: { stats: { total: 9, published: 9, categories: 4 }, url: `${cmsHost}/pages/faq`, faqs: [adminFaq] } }),
+  ...cmsAdminPaths({ base: '/admin/cms/support-contacts', key: 'contact', listKey: 'contacts', message: 'support_contact', noun: 'support contact', example: adminContact, body: cmsContactBody, required: ['type', 'label', 'value'], statuses: ['active', 'inactive'], list: { stats: { total: 5, active: 2 }, url: `${cmsHost}/pages/help-and-support`, contacts: [adminContact] } })
+});

@@ -9,7 +9,8 @@ import { publicProfilePictureUrl as publicUploadUrl } from '../../shared/utils/s
 import { listLiveBanners } from '../admin-banners/admin-banners.service.js';
 import { publicBannersRequest } from '../admin-banners/admin-banners.validation.js';
 import { checkServiceability, ZONE_CURRENCY } from '../zone/zone.service.js';
-import { cancelPolicyRequest, serviceAvailabilityRequest } from './common.validation.js';
+import { listActiveContacts, listPublicPages, listPublishedFaqs, findPublishedPage, pageUrl, publicContactPayload, publicFaqPayload, RESERVED_SLUGS } from '../cms/cms.service.js';
+import { cancelPolicyRequest, cmsAudienceRequest, serviceAvailabilityRequest } from './common.validation.js';
 
 const router = Router();
 
@@ -71,5 +72,25 @@ router.get('/banners', optionalAuthenticate, validate(publicBannersRequest), asy
   const data = await listLiveBanners({ limit: req.query.limit, moduleKey: req.query.module_key });
   return success(res, { message: 'OK', data });
 }));
+
+// CMS — the app's menu of WebView pages (no hard-coded URLs), plus FAQ / support data as JSON.
+router.get('/pages', validate(cmsAudienceRequest), asyncHandler(async (req, res) =>
+  success(res, { message: 'OK', data: await listPublicPages(req.query.audience) })
+));
+
+router.get('/pages/:slug', asyncHandler(async (req, res) => {
+  const slug = String(req.params.slug).toLowerCase();
+  const page = RESERVED_SLUGS.includes(slug) ? null : await findPublishedPage(slug);
+  if (!page) return res.status(404).json({ success: false, message: 'page_not_found', data: {} });
+  return success(res, { message: 'OK', data: { slug: page.slug, title: page.title, content: page.content, url: pageUrl(page.slug), updated_at: page.updatedAt } });
+}));
+
+router.get('/faqs', validate(cmsAudienceRequest), asyncHandler(async (req, res) =>
+  success(res, { message: 'OK', data: (await listPublishedFaqs(req.query.audience)).map(publicFaqPayload) })
+));
+
+router.get('/support-contacts', validate(cmsAudienceRequest), asyncHandler(async (req, res) =>
+  success(res, { message: 'OK', data: (await listActiveContacts(req.query.audience)).map(publicContactPayload) })
+));
 
 export default router;

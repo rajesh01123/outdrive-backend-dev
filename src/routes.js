@@ -11,6 +11,7 @@ import adminVehiclesRoutes from './modules/admin-vehicles/admin-vehicles.routes.
 import adminFaresRoutes from './modules/admin-fares/admin-fares.routes.js';
 import adminBookingsRoutes from './modules/admin-bookings/admin-bookings.routes.js';
 import adminBannersRoutes from './modules/admin-banners/admin-banners.routes.js';
+import adminCmsRoutes from './modules/admin-cms/admin-cms.routes.js';
 
 const router = Router();
 
@@ -25,6 +26,7 @@ router.use('/admin/vehicle-types', adminVehiclesRoutes);
 router.use('/admin/fares', adminFaresRoutes);
 router.use('/admin/bookings', adminBookingsRoutes);
 router.use('/admin/banners', adminBannersRoutes);
+router.use('/admin/cms', adminCmsRoutes);
 router.use('/admin', adminRoutes);
 
 export default router;
