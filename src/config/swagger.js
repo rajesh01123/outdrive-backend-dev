@@ -231,7 +231,7 @@ Object.assign(openApiSpec.paths, {
 const idParam = (example = 1) => [{ name: 'id', in: 'path', required: true, schema: { type: 'integer', example } }];
 const errors = (map) => Object.fromEntries(Object.entries(map).map(([status, description]) => [status, { description }]));
 
-const moduleExample = { id: 1, name: 'One Way', module_key: 'one_way', short_description: 'City ride', description: 'Point to point city ride', image: 'http://localhost:3113/uploads/services/7f3a.webp', section: 'rides', transport_type: 'taxi', service_type: 'normal', icon_types_for: 'taxi', fare_category: 'city', cancel_policy_title: 'Cancellation policy', cancel_policy_body: 'Free cancel till driver assigned.', sort_order: 1, status: 'active' };
+const moduleExample = { id: 1, name: 'One Way', module_key: 'one_way', short_description: 'City ride', description: 'Point to point city ride', image: 'http://localhost:3113/uploads/services/7f3a.webp', section: 'rides', transport_type: 'taxi', service_type: 'normal', icon_types_for: 'taxi', fare_category: 'city', cancel_policy_title: 'Cancellation policy', cancel_policy_body: 'Free cancellation until a driver is assigned. After the driver is assigned, a cancellation fee may apply.', sort_order: 1, status: 'active' };
 const zoneExample = { id: 1, name: 'Indore City', polygon: [[22.84, 75.72], [22.84, 76.0], [22.6, 76.0], [22.6, 75.72]], priority: 0, status: 'active', currency: 'INR', currency_symbol: '₹', distance_unit: 'km', modules: [{ service_id: 1, module_key: 'one_way', name: 'One Way', module_status: 'active', is_enabled: true }], modules_enabled: 7, fares_count: 12 };
 const vehicleExample = { id: 1, name: 'Bike', type_key: 'bike', icon: 'http://localhost:3113/uploads/vehicles/a1.webp', description: 'Affordable bike ride', capacity: 1, is_shared: false, sort_order: 1, status: 'active' };
 const fareExample = { id: 1, zone_type_id: 'zt_1', zone_id: 1, vehicle_type_id: 1, fare_category: 'city', base_price: 25, base_distance_km: 6, price_per_km: 8, free_minutes: 18, price_per_min: 1, min_fare: 30, tax_percent: 0, free_waiting_mins: 5, waiting_charge_per_min: 2, payment_types: ['cash', 'wallet', 'online'], is_default: true, status: 'active' };
@@ -312,7 +312,7 @@ Object.assign(openApiSpec.paths, {
   '/common/cancel-policy': { get: {
     tags: ['Common'], summary: 'ETA-02 — cancellation policy of a module (set in the admin panel). Empty body = not written yet',
     parameters: [{ name: 'module_key', in: 'query', required: true, schema: { type: 'string', example: 'one_way' } }],
-    responses: { 200: json(success('OK', {}), { success: true, message: 'OK', data: { title: 'Cancellation policy', body: 'Free cancel till driver assigned. After assign, fee may apply.' } }), 422: { description: 'validation_error' } }
+    responses: { 200: json(success('OK', {}), { success: true, message: 'OK', data: { title: 'Cancellation policy', body: 'Free cancellation until a driver is assigned. After the driver is assigned, a cancellation fee may apply.' } }), 422: { description: 'validation_error' } }
   } },
   '/request/eta': { post: {
     tags: ['Ride request'], summary: 'ETA-01 — vehicles and backend-calculated fares for a module', security: bearer,

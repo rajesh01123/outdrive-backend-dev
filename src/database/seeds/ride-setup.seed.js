@@ -57,7 +57,8 @@ const fares = {
   },
   parcel: {
     bike: [30, 5, 9, 20, 1, 40, 0, 5, 2, true],
-    three_wheeler: [80, 4, 16, 15, 1.5, 120, 0, 10, 2, true]
+    // One default per zone + category: the parcel default is the bike.
+    three_wheeler: [80, 4, 16, 15, 1.5, 120, 0, 10, 2, false]
   }
 };
 

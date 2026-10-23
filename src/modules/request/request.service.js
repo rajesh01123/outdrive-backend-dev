@@ -105,9 +105,10 @@ export const estimate = async ({ body, user }) => {
   const trip = await resolveTrip(body);
   const walletBalance = Number(user.walletBalance || 0);
   const data = trip.offers.map((offer) => etaItem(offer, trip, walletBalance));
-  // One vehicle is always pre-selected, even when the configured default is filtered out (e.g. by seats).
-  // Fares allow only one default per zone + category, so there is never more than one.
-  if (data.length && !data.some((item) => item.is_default)) data[0].is_default = true;
+  // Exactly one vehicle is pre-selected: the first configured default, or the first vehicle when the
+  // default is filtered out (e.g. by seats). Older data can hold two defaults in one zone + category.
+  const defaultIndex = Math.max(0, data.findIndex((item) => item.is_default));
+  data.forEach((item, index) => { item.is_default = index === defaultIndex; });
   return {
     message: data.length ? 'OK' : 'no_vehicles_available',
     enabledDispatchType: { ondemand: true, bidding: false, shared: trip.fareCategory === 'shared' },
