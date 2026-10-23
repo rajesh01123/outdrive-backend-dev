@@ -13,13 +13,15 @@ npm.cmd run dev
 
 Set `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `JWT_SECRET`, and `OTP_TOKEN_SECRET` in `.env` before starting. The database itself must already exist. For development, OTP is `123456` by default; in production a configured SMS adapter is mandatory and fixed OTPs are disabled.
 
-To create the initial admin after migrations:
+After migrations, one command adds all starter data — the first admin, the 7 ride modules, 8 vehicle types with their module mapping, the "Indore City" zone and sample fares:
 
 ```powershell
 $env:ADMIN_EMAIL = 'admin@example.com'
 $env:ADMIN_PASSWORD = 'use-a-strong-password'
 npm.cmd run db:seed
 ```
+
+It only adds what is missing, so it is safe to run again after every deploy; it never overwrites changes made in the admin panel.
 
 ## API prefix
 
@@ -33,6 +35,8 @@ Module documentation is stored beside its audience, so new booking or driver API
 
 - [User authentication APIs](docs/user/auth-api.md)
 - [User profile APIs](docs/user/profile-api.md)
+- [Rider Home · Zone · ETA APIs](docs/user/ride-api.md)
+- [Admin ride setup APIs](docs/admin/ride-setup-api.md)
 - [Driver API documentation](docs/driver/README.md) — no driver endpoint exists yet
 
 Admin APIs are also available in Swagger under the **Admin auth** tag. They provide profile updates, password reset/change, email-based 2FA, and a one-active-device login policy.

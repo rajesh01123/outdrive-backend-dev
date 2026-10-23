@@ -1,29 +1,12 @@
 import { validationError } from '../../middleware/validate.js';
 
 export const SERVICE_STATUSES = ['active', 'coming_soon', 'inactive'];
-export const SERVICE_TYPES = ['ride', 'parcel'];
-const slugPattern = /^[a-z0-9]+(?:_[a-z0-9]+)*$/;
 
 const text = (value) => (typeof value === 'string' ? value.trim() : '');
-export const slugify = (value) => text(value).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40).replace(/_+$/, '');
-
-const serviceFields = (body, { creating }) => {
-  if (creating || body.name !== undefined) {
-    body.name = text(body.name).replace(/\s+/g, ' ');
-    if (body.name.length < 2 || body.name.length > 60) validationError('name', 'name must be between 2 and 60 characters');
-  }
-  if (body.subtitle !== undefined) {
-    body.subtitle = text(body.subtitle).replace(/\s+/g, ' ');
-    if (body.subtitle.length > 120) validationError('subtitle', 'subtitle must not exceed 120 characters');
-  }
-  if (creating || body.service_type !== undefined) {
-    body.service_type = text(body.service_type) || 'ride';
-    if (!SERVICE_TYPES.includes(body.service_type)) validationError('service_type', 'service_type must be ride or parcel');
-  }
-  if (creating || body.status !== undefined) {
-    body.status = text(body.status) || 'inactive';
-    if (!SERVICE_STATUSES.includes(body.status)) validationError('status', 'status must be active, coming_soon or inactive');
-  }
+const optionalText = (body, key, max) => {
+  if (body[key] === undefined) return;
+  body[key] = text(body[key]).replace(/[ \t]+/g, ' ');
+  if (body[key].length > max) validationError(key, `${key} must not exceed ${max} characters`);
 };
 
 export const serviceIdRequest = (req) => {
@@ -32,19 +15,22 @@ export const serviceIdRequest = (req) => {
   req.params.id = id;
 };
 
-export const createServiceRequest = (req) => {
-  const { body } = req;
-  serviceFields(body, { creating: true });
-  body.slug = text(body.slug) ? text(body.slug).toLowerCase() : slugify(body.name);
-  if (!slugPattern.test(body.slug) || body.slug.length > 40) {
-    validationError('slug', 'slug may contain lowercase letters, numbers and single underscores (max 40)');
-  }
-  if (!req.file) validationError('image', 'image is required');
-};
-
+// module_key, section, transport_type and service_type are the app contract, so they are not editable.
 export const updateServiceRequest = (req) => {
   serviceIdRequest(req);
-  serviceFields(req.body, { creating: false });
+  const { body } = req;
+  if (body.name !== undefined) {
+    body.name = text(body.name).replace(/\s+/g, ' ');
+    if (body.name.length < 2 || body.name.length > 60) validationError('name', 'name must be between 2 and 60 characters');
+  }
+  optionalText(body, 'short_description', 120);
+  optionalText(body, 'description', 500);
+  optionalText(body, 'cancel_policy_title', 120);
+  optionalText(body, 'cancel_policy_body', 1000);
+  if (body.status !== undefined) {
+    body.status = text(body.status);
+    if (!SERVICE_STATUSES.includes(body.status)) validationError('status', 'status must be active, coming_soon or inactive');
+  }
 };
 
 export const updateServiceStatusRequest = (req) => {

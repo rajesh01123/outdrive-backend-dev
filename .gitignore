@@ -4,6 +4,8 @@ uploads/profiles/*
 !uploads/profiles/.gitkeep
 uploads/services/*
 !uploads/services/.gitkeep
+uploads/vehicles/*
+!uploads/vehicles/.gitkeep
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

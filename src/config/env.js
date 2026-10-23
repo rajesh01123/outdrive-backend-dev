@@ -42,6 +42,10 @@ export const env = Object.freeze({
     otpMaxAttempts: integer('ADMIN_OTP_MAX_ATTEMPTS', 5),
     fixedOtp: process.env.NODE_ENV === 'production' ? '' : (process.env.ADMIN_DEV_OTP || '123456')
   },
+  payments: {
+    // Stays off until a payment gateway is integrated, so the app never offers "online".
+    onlineEnabled: process.env.ONLINE_PAYMENT_ENABLED === 'true'
+  },
   otp: {
     expirySeconds: integer('OTP_EXPIRY_SECONDS', 300),
     resendSeconds: integer('OTP_RESEND_SECONDS', 30),

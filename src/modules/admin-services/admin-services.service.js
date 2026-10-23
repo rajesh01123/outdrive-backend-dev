@@ -1,5 +1,6 @@
 import { sequelize } from '../../config/database.js';
 import { Service } from '../../database/models/index.js';
+import { fareCategoryForService } from '../../shared/fare/fare-calculator.js';
 import { AppError } from '../../shared/utils/app-error.js';
 import { removeStoredUpload } from '../../shared/utils/image-upload.js';
 import { publicProfilePictureUrl as publicUploadUrl } from '../../shared/utils/serializers.js';
@@ -7,10 +8,17 @@ import { publicProfilePictureUrl as publicUploadUrl } from '../../shared/utils/s
 export const servicePayload = (service) => ({
   id: Number(service.id),
   name: service.name,
-  slug: service.slug,
-  subtitle: service.subtitle || '',
+  module_key: service.moduleKey,
+  short_description: service.shortDescription || '',
+  description: service.description || '',
   image: publicUploadUrl(service.image),
+  section: service.section,
+  transport_type: service.transportType,
   service_type: service.serviceType,
+  icon_types_for: service.iconTypesFor,
+  fare_category: fareCategoryForService(service),
+  cancel_policy_title: service.cancelPolicyTitle || '',
+  cancel_policy_body: service.cancelPolicyBody || '',
   sort_order: service.sortOrder,
   status: service.status
 });
@@ -30,29 +38,19 @@ export const listServices = async () => {
   };
 };
 
-export const createService = async ({ body, image }) => {
-  if (await Service.findOne({ where: { slug: body.slug } })) throw new AppError('service_slug_exists', 409, { errors: { slug: 'slug is already used by another service' } });
-  // New services go to the end of the app home list.
-  const lastOrder = (await Service.max('sortOrder')) || 0;
-  const service = await Service.create({
-    name: body.name,
-    slug: body.slug,
-    subtitle: body.subtitle || null,
-    image,
-    serviceType: body.service_type,
-    status: body.status,
-    sortOrder: lastOrder + 1
-  });
-  return servicePayload(service);
-};
+const lockedFields = ['module_key', 'slug', 'section', 'transport_type', 'service_type', 'icon_types_for'];
 
 export const updateService = async ({ id, body, image }) => {
   const service = await findService(id);
-  if (body.slug !== undefined && body.slug !== service.slug) throw new AppError('service_slug_locked', 422, { errors: { slug: 'slug cannot be changed after the service is created' } });
+  const locked = lockedFields.find((field) => body[field] !== undefined);
+  if (locked) throw new AppError('service_field_locked', 422, { errors: { [locked]: `${locked} is part of the app contract and cannot be changed` } });
+
   const values = {};
   if (body.name !== undefined) values.name = body.name;
-  if (body.subtitle !== undefined) values.subtitle = body.subtitle || null;
-  if (body.service_type !== undefined) values.serviceType = body.service_type;
+  if (body.short_description !== undefined) values.shortDescription = body.short_description || null;
+  if (body.description !== undefined) values.description = body.description || null;
+  if (body.cancel_policy_title !== undefined) values.cancelPolicyTitle = body.cancel_policy_title || null;
+  if (body.cancel_policy_body !== undefined) values.cancelPolicyBody = body.cancel_policy_body || null;
   if (body.status !== undefined) values.status = body.status;
   const previousImage = service.image;
   if (image) values.image = image;

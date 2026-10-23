@@ -12,8 +12,10 @@ export const errorHandler = (error, req, res, next) => {
     return failure(res, { status: 422, message });
   }
   if (error instanceof UniqueConstraintError) {
-    const message = Object.keys(error.fields || {}).some((field) => field.includes('slug')) ? 'service_slug_exists' : 'mobile_already_registered';
-    return failure(res, { status: 409, message });
+    // Services check uniqueness themselves; this only catches races, so stay generic unless it is the mobile index.
+    const fields = Object.keys(error.fields || {});
+    const message = fields.some((field) => field.includes('mobile')) ? 'mobile_already_registered' : 'duplicate_value';
+    return failure(res, { status: 409, message, data: { fields } });
   }
   if (error instanceof ValidationError) return failure(res, { status: 422, message: 'validation_error' });
 
