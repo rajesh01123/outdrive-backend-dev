@@ -89,14 +89,31 @@ Polygon rules: 3–500 points, edges must not cross, must have an area. A closed
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/admin/vehicle-types` | list + stats |
-| POST | `/admin/vehicle-types` | multipart: `name`, `type_key` (optional, from name), `description`, `capacity` 1–20, `is_shared`, `status`, `icon` (required, max 2 MB) |
-| POST | `/admin/vehicle-types/:id/update` | `type_key` locked; `is_shared` locked while the vehicle is mapped to any module |
+| POST | `/admin/vehicle-types` | multipart: `name`, `type_key` (optional, from name), `description`, `capacity` 1–20, `is_shared`, `use_for` (`ride` default \| `parcel` \| `both`), `wheels` (2 \| 3 \| 4, default 4), `status`, `icon` (required, max 2 MB) |
+| POST | `/admin/vehicle-types/:id/update` | `type_key` locked; `is_shared` / `use_for` / `wheels` cannot change in a way that breaks a module it is mapped to or an active fare (`422 vehicle_type_in_use` says what to remove first) |
 | POST | `/admin/vehicle-types/:id/status` | `active` \| `inactive` |
 | POST | `/admin/vehicle-types/reorder` | `{ "ids": [...] }` |
-| GET | `/admin/vehicle-types/mapping` | `{ services, vehicles, mapping: { service_id: [vehicle_ids] } }` |
+| GET | `/admin/vehicle-types/mapping` | `{ services, vehicles, mapping: { service_id: [vehicle_ids] }, blocked: { service_id: { vehicle_id: "why it does not fit" } } }` — the admin grid greys these out |
 | POST | `/admin/vehicle-types/mapping` | `{ "mapping": { "1": [1, 2, 3] } }` — replaces the list for the modules sent |
 
-Mapping rule: **Shared Ride takes only shared vehicles; every other module takes only private vehicles.**
+Each vehicle has **`use_for`** (ride / parcel / both) and **`wheels`** (2 / 3 / 4). Mapping rules (also enforced when saving fares):
+
+| Module | Accepts |
+|---|---|
+| One Way, Scheduled | ride or both, not shared |
+| Shared Ride | shared vehicles only |
+| Outstation, Round Trip | ride or both, 4-wheelers, not shared |
+| Parcel on Bike | parcel or both, 2-wheelers |
+| Parcel on 3 Wheeler | parcel or both, 3-wheelers |
+
+| Fare category | Accepts |
+|---|---|
+| city | ride or both, not shared |
+| shared | shared only |
+| outstation | ride or both, 4-wheelers, not shared |
+| parcel | parcel or both, not shared |
+
+Seed values: Bike = both / 2 · Auto = ride / 3 · Hatchback, Sedan, SUV, Premium = ride / 4 · Shared Car = ride / 4 (shared) · 3 Wheeler = parcel / 3. Migration 023 removed existing mappings that broke these rules and switched off such fares.
 
 Seeded mapping (ETA spec): one_way / scheduled → Bike, Auto, Hatchback, Sedan, SUV, Premium · shared → Shared Car · outstation / round_trip → Sedan, SUV, Premium · parcel_bike → Bike · parcel_3wheeler → 3 Wheeler.
 

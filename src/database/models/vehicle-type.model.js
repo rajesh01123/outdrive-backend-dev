@@ -12,6 +12,8 @@ VehicleType.init(
     description: { type: DataTypes.STRING(200), allowNull: true },
     capacity: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, defaultValue: 1 },
     isShared: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false, field: 'is_shared' },
+    useFor: { type: DataTypes.ENUM('ride', 'parcel', 'both'), allowNull: false, defaultValue: 'ride', field: 'use_for' },
+    wheels: { type: DataTypes.TINYINT.UNSIGNED, allowNull: false, defaultValue: 4 },
     sortOrder: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, defaultValue: 0, field: 'sort_order' },
     status: { type: DataTypes.ENUM('active', 'inactive'), allowNull: false, defaultValue: 'active' }
   },

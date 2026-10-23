@@ -15,6 +15,9 @@ import { ZoneVehicleFare } from './zone-vehicle-fare.model.js';
 import { FareHistory } from './fare-history.model.js';
 import { Booking } from './booking.model.js';
 import { BookingParcel } from './booking-parcel.model.js';
+import { RecentSearch } from './recent-search.model.js';
+import { FavouriteLocation } from './favourite-location.model.js';
+import { Banner } from './banner.model.js';
 
 User.hasMany(UserSession, { foreignKey: 'userId', as: 'sessions' });
 UserSession.belongsTo(User, { foreignKey: 'userId', as: 'user' });
@@ -49,7 +52,11 @@ Booking.belongsTo(Driver, { foreignKey: 'driverId', as: 'driver' });
 Booking.hasOne(BookingParcel, { foreignKey: 'bookingId', as: 'parcel' });
 BookingParcel.belongsTo(Booking, { foreignKey: 'bookingId', as: 'booking' });
 
+User.hasMany(RecentSearch, { foreignKey: 'userId', as: 'recentSearches' });
+User.hasMany(FavouriteLocation, { foreignKey: 'userId', as: 'favouriteLocations' });
+
 export {
   User, OtpVerification, UserSession, Device, Admin, Driver, AdminSession, AdminOtpVerification,
-  Service, Zone, ZoneService, VehicleType, ServiceVehicleType, ZoneVehicleFare, FareHistory, Booking, BookingParcel
+  Service, Zone, ZoneService, VehicleType, ServiceVehicleType, ZoneVehicleFare, FareHistory, Booking, BookingParcel,
+  RecentSearch, FavouriteLocation, Banner
 };

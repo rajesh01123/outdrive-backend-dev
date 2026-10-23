@@ -1,5 +1,10 @@
 import { validationError } from '../../middleware/validate.js';
+import { parseIstDatetime } from '../../shared/utils/ist-datetime.js';
 import { coordinate, moduleKeyField } from '../common/common.validation.js';
+
+export const TRANSPORT_TYPES = ['taxi', 'delivery'];
+export const RECENT_SEARCH_LIMIT = { default: 10, max: 20 };
+export const MAX_SEARCH_STOPS = 3;
 
 const text = (value) => (typeof value === 'string' ? value.trim() : '');
 
@@ -23,15 +28,6 @@ const address = (body, key) => {
   if (body[key].length > 255) validationError(key, `${key} must not exceed 255 characters`);
 };
 
-// A time without an offset ("2026-10-23 10:30") is Indian time; the service only runs in India.
-const LOCAL_TIME = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2})?$/;
-export const parseScheduleDatetime = (value) => {
-  const raw = text(value);
-  if (!raw) return null;
-  const date = new Date(LOCAL_TIME.test(raw) ? `${raw.replace(' ', 'T')}+05:30` : raw);
-  return Number.isNaN(date.getTime()) ? undefined : date;
-};
-
 export const etaRequest = (req) => {
   const { body } = req;
   moduleKeyField(body);
@@ -52,9 +48,84 @@ export const etaRequest = (req) => {
   if (!Number.isInteger(seats) || seats < 1 || seats > 20) validationError('seats_taken', 'seats_taken must be a whole number between 1 and 20');
   body.seats_taken = seats;
 
-  const schedule = parseScheduleDatetime(body.schedule_datetime);
+  const schedule = parseIstDatetime(body.schedule_datetime);
   if (schedule === undefined) validationError('schedule_datetime', 'schedule_datetime must be a date and time like 2026-10-23 10:30:00');
   body.schedule_at = schedule;
 
   body.promo_code = text(body.promo_code);
+};
+
+const optionalText = (body, key, max) => {
+  if (body[key] === undefined || body[key] === null) { body[key] = ''; return; }
+  if (typeof body[key] !== 'string') validationError(key, `${key} must be text`);
+  body[key] = body[key].trim();
+  if (body[key].length > max) validationError(key, `${key} must not exceed ${max} characters`);
+};
+
+const optionalNumber = (body, key, max, { whole = false } = {}) => {
+  const raw = body[key];
+  if (raw === undefined || raw === null || raw === '') { body[key] = 0; return; }
+  const value = typeof raw === 'string' ? Number(raw) : raw;
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > max) validationError(key, `${key} must be a number between 0 and ${max}`);
+  body[key] = whole ? Math.round(value) : Math.round(value * 100) / 100;
+};
+
+const transportType = (source, { required }) => {
+  source.transport_type = text(source.transport_type);
+  if (!source.transport_type) { if (required) source.transport_type = 'taxi'; return; }
+  if (!TRANSPORT_TYPES.includes(source.transport_type)) validationError('transport_type', 'transport_type must be taxi or delivery');
+};
+
+// HOME-04
+export const listRecentSearchesRequest = (req) => {
+  const { query } = req;
+  const limit = query.limit === undefined || query.limit === '' ? RECENT_SEARCH_LIMIT.default : Number(query.limit);
+  if (!Number.isInteger(limit) || limit < 1 || limit > RECENT_SEARCH_LIMIT.max) validationError('limit', `limit must be a whole number between 1 and ${RECENT_SEARCH_LIMIT.max}`);
+  query.limit = limit;
+  transportType(query, { required: false });
+};
+
+// Stops accept lat/lng (request contract) or latitude/longitude (response shape).
+const stopsField = (body) => {
+  if (body.stops === undefined || body.stops === null) { body.stops = []; return; }
+  if (!Array.isArray(body.stops)) validationError('stops', 'stops must be an array');
+  if (body.stops.length > MAX_SEARCH_STOPS) validationError('stops', `at most ${MAX_SEARCH_STOPS} stops are allowed`);
+  body.stops = body.stops.map((stop, index) => {
+    const key = `stops.${index}`;
+    if (!stop || typeof stop !== 'object') validationError(key, 'each stop must be an object');
+    const point = { lat: stop.lat ?? stop.latitude, lng: stop.lng ?? stop.longitude, address: stop.address, short_address: stop.short_address, order: stop.order };
+    for (const [field, limit] of [['lat', 90], ['lng', 180]]) {
+      const value = typeof point[field] === 'string' && point[field].trim() !== '' ? Number(point[field]) : point[field];
+      if (typeof value !== 'number' || !Number.isFinite(value) || Math.abs(value) > limit) validationError(`${key}.${field}`, `${field} must be a number between -${limit} and ${limit}`);
+      point[field] = value;
+    }
+    point.address = text(point.address);
+    if (!point.address || point.address.length > 255) validationError(`${key}.address`, 'address is required (max 255 characters)');
+    optionalText(point, 'short_address', 120);
+    point.order = Number(point.order);
+    if (!Number.isInteger(point.order) || point.order < 1 || point.order > MAX_SEARCH_STOPS) validationError(`${key}.order`, `order must be a whole number between 1 and ${MAX_SEARCH_STOPS}`);
+    return point;
+  });
+  if (new Set(body.stops.map((stop) => stop.order)).size !== body.stops.length) validationError('stops', 'stop order numbers must be unique');
+  body.stops.sort((a, b) => a.order - b.order);
+};
+
+// HOME-05
+export const saveRecentSearchRequest = (req) => {
+  const { body } = req;
+  coordinate(body, 'pick_lat', -90, 90);
+  coordinate(body, 'pick_lng', -180, 180);
+  coordinate(body, 'drop_lat', -90, 90);
+  coordinate(body, 'drop_lng', -180, 180);
+  address(body, 'pick_address');
+  address(body, 'drop_address');
+  optionalText(body, 'pick_short_address', 120);
+  optionalText(body, 'drop_short_address', 120);
+  for (const [key, max] of [['pickup_poc_name', 80], ['pickup_poc_mobile', 15], ['pickup_poc_instruction', 255], ['drop_poc_name', 80], ['drop_poc_mobile', 15], ['drop_poc_instruction', 255]]) optionalText(body, key, max);
+  optionalNumber(body, 'total_distance', 3000); // km
+  optionalNumber(body, 'total_time', 4320, { whole: true }); // minutes
+  body.poly_line = typeof body.poly_line === 'string' ? body.poly_line : '';
+  transportType(body, { required: true });
+  body.module_key = text(body.module_key);
+  stopsField(body);
 };

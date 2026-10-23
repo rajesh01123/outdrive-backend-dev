@@ -1,4 +1,5 @@
 import { validationError } from '../../middleware/validate.js';
+import { USE_FOR, WHEELS } from '../../shared/fleet/vehicle-rules.js';
 
 const keyPattern = /^[a-z0-9]+(?:_[a-z0-9]+)*$/;
 const text = (value) => (typeof value === 'string' ? value.trim() : '');
@@ -26,6 +27,16 @@ const vehicleFields = (body, { creating }) => {
     if (!Number.isInteger(body.capacity) || body.capacity < 1 || body.capacity > 20) validationError('capacity', 'capacity must be a whole number between 1 and 20');
   }
   booleanField(body, 'is_shared');
+  if (creating || body.use_for !== undefined) {
+    body.use_for = text(body.use_for) || 'ride';
+    if (!USE_FOR.includes(body.use_for)) validationError('use_for', 'use_for must be ride, parcel or both');
+  }
+  if (creating || body.wheels !== undefined) {
+    body.wheels = body.wheels === undefined || body.wheels === '' ? 4 : Number(body.wheels);
+    if (!WHEELS.includes(body.wheels)) validationError('wheels', 'wheels must be 2, 3 or 4');
+  }
+  // A shared vehicle sells seats on rides, so it cannot be a parcel vehicle.
+  if (body.is_shared && body.use_for && body.use_for !== 'ride') validationError('use_for', 'a shared vehicle must be used for rides');
   if (creating || body.status !== undefined) {
     body.status = text(body.status) || 'active';
     if (!['active', 'inactive'].includes(body.status)) validationError('status', 'status must be active or inactive');

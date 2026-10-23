@@ -32,3 +32,26 @@ export const deleteAccountRequest = (req) => {
   }
   req.body.otp = otp;
 };
+
+// HOME-06
+export const addFavouriteRequest = (req) => {
+  const { body } = req;
+  for (const [key, limit] of [['pick_lat', 90], ['pick_lng', 180]]) {
+    const value = typeof body[key] === 'string' && body[key].trim() !== '' ? Number(body[key]) : body[key];
+    if (typeof value !== 'number' || !Number.isFinite(value) || Math.abs(value) > limit) validationError(key, `${key} must be a number between -${limit} and ${limit}`);
+    body[key] = value;
+  }
+  body.pick_address = (optionalText(body.pick_address) || '').replace(/\s+/g, ' ');
+  if (!body.pick_address || body.pick_address.length > 255) validationError('pick_address', 'pick_address is required (max 255 characters)');
+  body.address_name = (optionalText(body.address_name) || '').replace(/\s+/g, ' ');
+  if (!body.address_name || body.address_name.length > 40) validationError('address_name', 'address_name is required (max 40 characters)');
+  body.landmark = optionalText(body.landmark) || '';
+  if (body.landmark.length > 120) validationError('landmark', 'landmark must not exceed 120 characters');
+};
+
+// HOME-07 — id from the URL (/favourite-location/:id) or the body ({ "id": "f_91" }).
+export const deleteFavouriteRequest = (req) => {
+  const raw = String(req.params.id ?? req.body?.id ?? '').trim();
+  if (!raw) validationError('id', 'id is required');
+  req.favouriteId = raw;
+};

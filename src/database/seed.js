@@ -1,5 +1,6 @@
 import { connectDatabase, sequelize } from '../config/database.js';
 import { seedAdmin } from './seeds/admin.seed.js';
+import { seedBanners } from './seeds/banners.seed.js';
 import { seedRideSetup } from './seeds/ride-setup.seed.js';
 import { seedServices } from './seeds/services.seed.js';
 
@@ -8,7 +9,8 @@ import { seedServices } from './seeds/services.seed.js';
 const steps = [
   ['Admin user', seedAdmin],
   ['Ride modules', seedServices],
-  ['Ride setup (vehicles, mapping, zone, fares)', seedRideSetup]
+  ['Ride setup (vehicles, mapping, zone, fares)', seedRideSetup],
+  ['Home banners', seedBanners]
 ];
 
 const seed = async () => {

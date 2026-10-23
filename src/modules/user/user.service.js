@@ -3,6 +3,7 @@ import { Device, User, UserSession } from '../../database/models/index.js';
 import { AppError } from '../../shared/utils/app-error.js';
 import { userPayload } from '../../shared/utils/serializers.js';
 import { verifyOtp } from '../auth/otp.service.js';
+import { listFavourites } from './favourite.service.js';
 
 const profileFields = (body) => {
   const values = {};
@@ -32,7 +33,7 @@ export const updateProfile = async ({ userId, body, profilePicture }) => {
 export const getUser = async (userId) => {
   const user = await User.findByPk(userId);
   if (!user) throw new AppError('user_not_found', 404);
-  return userPayload(user, { detailed: true });
+  return { ...userPayload(user, { detailed: true }), favouriteLocations: { data: await listFavourites(user.id) } };
 };
 
 export const deleteAccount = ({ userId, otp, reason }) =>

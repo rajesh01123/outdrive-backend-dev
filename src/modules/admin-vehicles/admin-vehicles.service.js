@@ -1,5 +1,6 @@
 import { sequelize } from '../../config/database.js';
-import { Service, ServiceVehicleType, VehicleType } from '../../database/models/index.js';
+import { Service, ServiceVehicleType, VehicleType, ZoneVehicleFare } from '../../database/models/index.js';
+import { vehicleCategoryMismatch, vehicleModuleMismatch } from '../../shared/fleet/vehicle-rules.js';
 import { AppError } from '../../shared/utils/app-error.js';
 import { removeStoredUpload } from '../../shared/utils/image-upload.js';
 import { publicProfilePictureUrl as publicUploadUrl } from '../../shared/utils/serializers.js';
@@ -12,6 +13,8 @@ export const vehiclePayload = (vehicle) => ({
   description: vehicle.description || '',
   capacity: vehicle.capacity,
   is_shared: Boolean(vehicle.isShared),
+  use_for: vehicle.useFor,
+  wheels: vehicle.wheels,
   sort_order: vehicle.sortOrder,
   status: vehicle.status
 });
@@ -43,10 +46,34 @@ export const createVehicleType = async ({ body, icon }) => {
     description: body.description || null,
     capacity: body.capacity,
     isShared: Boolean(body.is_shared),
+    useFor: body.use_for,
+    wheels: body.wheels,
     status: body.status,
     sortOrder: lastOrder + 1
   });
   return vehiclePayload(vehicle);
+};
+
+// Changing shared / use for / wheels must not break the modules and active fares the vehicle already has.
+const assertStillFits = async (vehicle, body) => {
+  const next = {
+    name: body.name ?? vehicle.name,
+    isShared: body.is_shared ?? Boolean(vehicle.isShared),
+    useFor: body.use_for ?? vehicle.useFor,
+    wheels: body.wheels ?? vehicle.wheels
+  };
+  if (next.isShared === Boolean(vehicle.isShared) && next.useFor === vehicle.useFor && Number(next.wheels) === Number(vehicle.wheels)) return;
+  const [services, fares] = await Promise.all([
+    vehicle.getServices(),
+    ZoneVehicleFare.findAll({ where: { vehicleTypeId: vehicle.id, status: 'active' }, attributes: ['fareCategory'] })
+  ]);
+  const badModules = services.filter((service) => vehicleModuleMismatch(next, service)).map((service) => service.name);
+  const badFares = [...new Set(fares.filter((fare) => vehicleCategoryMismatch(next, fare.fareCategory)).map((fare) => fare.fareCategory))];
+  if (!badModules.length && !badFares.length) return;
+  const parts = [];
+  if (badModules.length) parts.push(`remove it from ${badModules.join(', ')} (Module mapping)`);
+  if (badFares.length) parts.push(`switch off its ${badFares.join(', ')} fares (Fare settings)`);
+  throw new AppError('vehicle_type_in_use', 422, { errors: { use_for: `This change does not fit where the vehicle is used — first ${parts.join(' and ')}.` } });
 };
 
 export const updateVehicleType = async ({ id, body, icon }) => {
@@ -54,16 +81,14 @@ export const updateVehicleType = async ({ id, body, icon }) => {
   if (body.type_key !== undefined && body.type_key !== vehicle.typeKey) {
     throw new AppError('vehicle_type_key_locked', 422, { errors: { type_key: 'type_key cannot be changed after the vehicle is created' } });
   }
-  if (body.is_shared !== undefined && body.is_shared !== Boolean(vehicle.isShared)) {
-    // Flipping shared would silently break the module mapping rules below.
-    const mapped = await ServiceVehicleType.count({ where: { vehicleTypeId: vehicle.id } });
-    if (mapped) throw new AppError('vehicle_type_in_use', 422, { errors: { is_shared: 'remove this vehicle from all modules before changing is_shared' } });
-  }
+  await assertStillFits(vehicle, body);
   const values = {};
   if (body.name !== undefined) values.name = body.name;
   if (body.description !== undefined) values.description = body.description || null;
   if (body.capacity !== undefined) values.capacity = body.capacity;
   if (body.is_shared !== undefined) values.isShared = body.is_shared;
+  if (body.use_for !== undefined) values.useFor = body.use_for;
+  if (body.wheels !== undefined) values.wheels = body.wheels;
   if (body.status !== undefined) values.status = body.status;
   const previousIcon = vehicle.icon;
   if (icon) values.icon = icon;
@@ -100,10 +125,16 @@ export const getMapping = async () => {
   ]);
   const mapping = Object.fromEntries(services.map((service) => [Number(service.id), []]));
   for (const link of links) mapping[Number(link.serviceId)]?.push(Number(link.vehicleTypeId));
+  // blocked[serviceId][vehicleId] = why that vehicle cannot be ticked for that module (the grid disables it).
+  const blocked = Object.fromEntries(services.map((service) => [
+    Number(service.id),
+    Object.fromEntries(vehicles.map((vehicle) => [Number(vehicle.id), vehicleModuleMismatch(vehicle, service)]).filter(([, reason]) => reason))
+  ]));
   return {
     services: services.map((service) => ({ id: Number(service.id), name: service.name, module_key: service.moduleKey, service_type: service.serviceType, section: service.section, status: service.status })),
     vehicles: vehicles.map(vehiclePayload),
-    mapping
+    mapping,
+    blocked
   };
 };
 
@@ -119,14 +150,8 @@ export const saveMapping = (mapping) =>
       if (!service) { errors[`mapping.${serviceId}`] = 'unknown module'; continue; }
       const unknown = vehicleIds.filter((id) => !vehicleById.has(id));
       if (unknown.length) { errors[`mapping.${serviceId}`] = `unknown vehicle ids: ${unknown.join(', ')}`; continue; }
-      // Shared modules sell seats, so they only take shared vehicles — and other modules never do.
-      const wantsShared = service.serviceType === 'shared_ride';
-      const wrong = vehicleIds.map((id) => vehicleById.get(id)).filter((vehicle) => Boolean(vehicle.isShared) !== wantsShared);
-      if (wrong.length) {
-        errors[`mapping.${serviceId}`] = wantsShared
-          ? `${service.name} accepts only shared vehicles (not ${wrong.map((vehicle) => vehicle.name).join(', ')})`
-          : `${service.name} cannot use shared vehicles (${wrong.map((vehicle) => vehicle.name).join(', ')})`;
-      }
+      const reasons = vehicleIds.map((id) => vehicleModuleMismatch(vehicleById.get(id), service)).filter(Boolean);
+      if (reasons.length) errors[`mapping.${serviceId}`] = [...new Set(reasons)].join('; ');
     }
     if (Object.keys(errors).length) throw new AppError('validation_error', 422, { errors });
 

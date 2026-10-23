@@ -233,11 +233,11 @@ const errors = (map) => Object.fromEntries(Object.entries(map).map(([status, des
 
 const moduleExample = { id: 1, name: 'One Way', module_key: 'one_way', short_description: 'City ride', description: 'Point to point city ride', image: 'http://localhost:3113/uploads/services/7f3a.webp', section: 'rides', transport_type: 'taxi', service_type: 'normal', icon_types_for: 'taxi', fare_category: 'city', cancel_policy_title: 'Cancellation policy', cancel_policy_body: 'Free cancellation until a driver is assigned. After the driver is assigned, a cancellation fee may apply.', sort_order: 1, status: 'active' };
 const zoneExample = { id: 1, name: 'Indore City', polygon: [[22.84, 75.72], [22.84, 76.0], [22.6, 76.0], [22.6, 75.72]], priority: 0, status: 'active', currency: 'INR', currency_symbol: '₹', distance_unit: 'km', modules: [{ service_id: 1, module_key: 'one_way', name: 'One Way', module_status: 'active', is_enabled: true }], modules_enabled: 7, fares_count: 12 };
-const vehicleExample = { id: 1, name: 'Bike', type_key: 'bike', icon: 'http://localhost:3113/uploads/vehicles/a1.webp', description: 'Affordable bike ride', capacity: 1, is_shared: false, sort_order: 1, status: 'active' };
+const vehicleExample = { id: 1, name: 'Bike', type_key: 'bike', icon: 'http://localhost:3113/uploads/vehicles/a1.webp', description: 'Affordable bike ride', capacity: 1, is_shared: false, use_for: 'both', wheels: 2, sort_order: 1, status: 'active' };
 const fareExample = { id: 1, zone_type_id: 'zt_1', zone_id: 1, vehicle_type_id: 1, fare_category: 'city', base_price: 25, base_distance_km: 6, price_per_km: 8, free_minutes: 18, price_per_min: 1, min_fare: 30, tax_percent: 0, free_waiting_mins: 5, waiting_charge_per_min: 2, payment_types: ['cash', 'wallet', 'online'], is_default: true, status: 'active' };
 const breakdownExample = { distance_km: 8.5, minutes: 22, seats: 1, base_price: 25, price_per_km: 8, price_per_min: 1, extra_km: 2.5, extra_minutes: 4, distance_price: 20, time_price: 4, subtotal: 49, tax_percent: 0, tax_amount: 0, airport_surge_fee: 0, min_fare: 30, min_fare_applied: false, total: 49 };
 const bookingRowExample = { id: 1, booking_id: 'OD1001', request_id: 'req_1001', status: 'searching', module_key: 'one_way', module_name: 'One Way', section: 'rides', vehicle_name: 'Bike', customer: { id: 3, name: 'Rahul', mobile: '9977112912', country_code: '91' }, pick_address: 'Rajwada, Indore', drop_address: 'Airport Road, Indore', estimated_amount: 49, currency: 'INR', payment_opt: 'cash', is_later: false, scheduled_at: null, created_at: '2026-10-22T08:00:00.000Z' };
-const vehicleForm = (required) => ({ required: true, content: { 'multipart/form-data': { schema: { type: 'object', required, properties: { name: { type: 'string', example: 'E Rickshaw' }, type_key: { type: 'string', example: 'e_rickshaw', description: 'Create only; generated from name when empty; locked after create' }, description: { type: 'string' }, capacity: { type: 'integer', example: 4 }, is_shared: { type: 'boolean' }, status: { type: 'string', enum: ['active', 'inactive'] }, icon: { type: 'string', format: 'binary', description: 'JPEG, PNG or WebP; max 2 MB' } } } } } });
+const vehicleForm = (required) => ({ required: true, content: { 'multipart/form-data': { schema: { type: 'object', required, properties: { name: { type: 'string', example: 'E Rickshaw' }, type_key: { type: 'string', example: 'e_rickshaw', description: 'Create only; generated from name when empty; locked after create' }, description: { type: 'string' }, capacity: { type: 'integer', example: 4 }, is_shared: { type: 'boolean' }, use_for: { type: 'string', enum: ['ride', 'parcel', 'both'], description: 'Default ride' }, wheels: { type: 'integer', enum: [2, 3, 4], description: 'Default 4' }, status: { type: 'string', enum: ['active', 'inactive'] }, icon: { type: 'string', format: 'binary', description: 'JPEG, PNG or WebP; max 2 MB' } } } } } });
 const zoneBody = (required) => adminJsonBody({ type: 'object', required, properties: { name: { type: 'string', example: 'Indore City' }, priority: { type: 'integer', example: 0, description: 'Higher wins where zones overlap' }, status: { type: 'string', enum: ['active', 'inactive'] }, polygon: { type: 'array', description: '3–500 [lat, lng] points', items: { type: 'array', items: { type: 'number' } }, example: zoneExample.polygon }, enabled_module_ids: { type: 'array', items: { type: 'integer' }, description: 'Modules switched on in this zone (create default: all)' } } });
 
 openApiSpec.tags.push(
@@ -271,12 +271,12 @@ Object.assign(openApiSpec.paths, {
     get: { tags: ['Admin vehicles'], summary: 'Vehicle types with stats', security: adminBearer, responses: { 200: adminSuccess('OK', { stats: { total: 8, active: 8, inactive: 0, shared: 1 }, vehicles: [vehicleExample] }) } },
     post: { tags: ['Admin vehicles'], summary: 'Create vehicle type (icon required)', security: adminBearer, requestBody: vehicleForm(['name', 'icon']), responses: { 201: adminSuccess('vehicle_type_created', { vehicle: vehicleExample }), ...errors({ 409: 'vehicle_type_key_exists', 422: 'validation_error, icon_must_be_jpeg_png_or_webp, icon_too_large' }) } }
   },
-  '/admin/vehicle-types/{id}/update': { post: { tags: ['Admin vehicles'], summary: 'Edit vehicle type; type_key locked; is_shared locked while mapped to a module', security: adminBearer, parameters: idParam(), requestBody: vehicleForm([]), responses: { 200: adminSuccess('vehicle_type_updated', { vehicle: vehicleExample }), ...errors({ 422: 'vehicle_type_key_locked or vehicle_type_in_use' }) } } },
+  '/admin/vehicle-types/{id}/update': { post: { tags: ['Admin vehicles'], summary: 'Edit vehicle type; type_key locked; is_shared / use_for / wheels cannot change in a way that breaks its modules or active fares', security: adminBearer, parameters: idParam(), requestBody: vehicleForm([]), responses: { 200: adminSuccess('vehicle_type_updated', { vehicle: vehicleExample }), ...errors({ 422: 'vehicle_type_key_locked or vehicle_type_in_use' }) } } },
   '/admin/vehicle-types/{id}/status': { post: { tags: ['Admin vehicles'], summary: 'Active or inactive (no delete)', security: adminBearer, parameters: idParam(), requestBody: adminJsonBody({ type: 'object', required: ['status'], properties: { status: { type: 'string', enum: ['active', 'inactive'] } } }), responses: { 200: adminSuccess('vehicle_type_status_updated', { vehicle: vehicleExample }) } } },
   '/admin/vehicle-types/reorder': { post: { tags: ['Admin vehicles'], summary: 'Save display order; ids must list every vehicle once', security: adminBearer, requestBody: adminJsonBody({ type: 'object', required: ['ids'], properties: { ids: { type: 'array', items: { type: 'integer' } } } }), responses: { 200: adminSuccess('vehicle_types_reordered', { vehicles: [vehicleExample] }) } } },
   '/admin/vehicle-types/mapping': {
-    get: { tags: ['Admin vehicles'], summary: 'Which vehicles each module offers', security: adminBearer, responses: { 200: adminSuccess('OK', { services: [{ id: 1, name: 'One Way', module_key: 'one_way', service_type: 'normal', section: 'rides', status: 'active' }], vehicles: [vehicleExample], mapping: { 1: [1, 2, 3, 4, 5, 6] } }) } },
-    post: { tags: ['Admin vehicles'], summary: 'Replace the vehicle list of the given modules. Shared Ride takes only shared vehicles; other modules only private ones', security: adminBearer, requestBody: adminJsonBody({ type: 'object', required: ['mapping'], properties: { mapping: { type: 'object', example: { 1: [1, 2, 3, 4, 5, 6], 6: [1] } } } }), responses: { 200: adminSuccess('vehicle_mapping_saved', { mapping: { 1: [1, 2, 3, 4, 5, 6] } }), ...errors({ 422: 'validation_error' }) } }
+    get: { tags: ['Admin vehicles'], summary: 'Which vehicles each module offers; blocked[service][vehicle] = why a pair does not fit', security: adminBearer, responses: { 200: adminSuccess('OK', { services: [{ id: 1, name: 'One Way', module_key: 'one_way', service_type: 'normal', section: 'rides', status: 'active' }], vehicles: [vehicleExample], mapping: { 1: [1, 2, 3, 4, 5, 6] }, blocked: { 1: { 8: '3 Wheeler is a parcel vehicle; One Way needs a ride vehicle' } } }) } },
+    post: { tags: ['Admin vehicles'], summary: 'Replace the vehicle list of the given modules. Rules: ride modules take ride/both vehicles, parcel modules parcel/both; Shared Ride only shared; Outstation/Round Trip 4-wheelers; Parcel on Bike 2-wheelers; Parcel on 3 Wheeler 3-wheelers', security: adminBearer, requestBody: adminJsonBody({ type: 'object', required: ['mapping'], properties: { mapping: { type: 'object', example: { 1: [1, 2, 3, 4, 5, 6], 6: [1] } } } }), responses: { 200: adminSuccess('vehicle_mapping_saved', { mapping: { 1: [1, 2, 3, 4, 5, 6] } }), ...errors({ 422: 'validation_error' }) } }
   },
 
   '/admin/fares': { get: { tags: ['Admin fares'], summary: 'Fares of one zone grouped by category (city, shared, outstation, parcel); fare is null where not set yet', security: adminBearer, parameters: [{ name: 'zone_id', in: 'query', schema: { type: 'integer' }, description: 'Defaults to the highest-priority zone' }], responses: { 200: adminSuccess('OK', { zones: [{ id: 1, name: 'Indore City', status: 'active' }], zone: { id: 1, name: 'Indore City', status: 'active' }, categories: { city: [{ vehicle: vehicleExample, modules: ['One Way', 'Scheduled'], fare: fareExample }], shared: [], outstation: [], parcel: [] } }) } } },
@@ -331,4 +331,70 @@ Object.assign(openApiSpec.paths, {
       422: { description: 'validation_error | out_of_service_area | module_not_available | invalid_promo_code' }
     }
   } }
+});
+
+// ---------- Rider app: recent searches, favourites, banners + admin banners ----------
+const recentExample = { id: 12, user_id: 7, pick_lat: 22.6867, pick_lng: 75.8715, drop_lat: 22.7171, drop_lng: 75.8683, pick_address: '301, Atulya IT Park, Indore', pick_short_address: 'Atulya IT Park', drop_address: 'Bhawarkuan Square, Indore', drop_short_address: 'Bhawarkuan Square', pickup_poc_name: '', pickup_poc_mobile: '', pickup_poc_instruction: '', drop_poc_name: '', drop_poc_mobile: '', drop_poc_instruction: '', total_distance: 4.2, total_time: 12, poly_line: '', transport_type: 'taxi', module_key: 'one_way', searchStops: { data: [] }, created_at: '2026-10-23T08:10:00.000Z' };
+const favouriteExample = { id: 'f_91', pick_lat: '22.7196', pick_lng: '75.8577', drop_lat: '', drop_lng: '', pick_address: 'Rajwada, Indore, Madhya Pradesh', drop_address: '', address_name: 'Home', landmark: 'Near gate 2' };
+const bannerExample = { id: 'b_1', image: 'https://outdrivebackend.cyberimpulses.com/uploads/banners/offer1.webp', image_url: 'https://outdrivebackend.cyberimpulses.com/uploads/banners/offer1.webp', title: 'Flat 20% off', subtitle: 'On your first bike ride', active: true, order_by: 1, module_key: '', link_type: 'none', link_value: '', starts_at: '2026-10-01T00:00:00.000Z', ends_at: '2026-12-31T23:59:59.000Z' };
+const adminBannerExample = { id: 1, title: 'Flat 20% off', subtitle: 'On your first bike ride', image: bannerExample.image, module_key: '', link_type: 'none', link_value: '', sort_order: 1, status: 'active', state: 'live', starts_at: null, ends_at: null };
+const userOk = (message, data) => json(success(message, data), { success: true, message, data });
+const bannerForm = (required) => ({ required: true, content: { 'multipart/form-data': { schema: { type: 'object', required, properties: { title: { type: 'string', example: 'Flat 20% off' }, subtitle: { type: 'string' }, module_key: { type: 'string', description: 'Empty = all (home)' }, link_type: { type: 'string', enum: ['none', 'module', 'url'] }, link_value: { type: 'string', description: 'module_key for module, https URL for url' }, starts_at: { type: 'string', example: '2026-10-23 10:00', description: 'IST when no offset; empty = right away' }, ends_at: { type: 'string', description: 'IST when no offset; empty = no end' }, status: { type: 'string', enum: ['active', 'inactive'] }, image: { type: 'string', format: 'binary', description: 'JPEG, PNG or WebP; max 2 MB; 1200x600' } } } } } });
+
+openApiSpec.tags.push(
+  { name: 'Recent searches', description: 'Rider app pick/drop history (max 20 per user, newest first)' },
+  { name: 'Favourites', description: 'Saved places (Home, Work, custom); max 15 per user' },
+  { name: 'Admin banners', description: 'Home banners. View: all roles; changes: super_admin, operations' }
+);
+
+openApiSpec.paths['/user'].get.summary = 'AUTH-07 — get authenticated user (includes favouriteLocations.data)';
+openApiSpec.paths['/user'].get.responses[200] = userOk('OK', { id: 'u_7', name: 'Ankit', mobile: '9977112912', country_code: '91', profile_picture: '', gender: 'male', map_type: '', wallet_balance: 0, emergency_contact_name: '', emergency_contact_number: '', locale: 'en', favouriteLocations: { data: [favouriteExample] } });
+
+Object.assign(openApiSpec.paths, {
+  '/request/list-recent-searches': { get: {
+    tags: ['Recent searches'], summary: 'HOME-04 — recent searches, newest first', security: bearer,
+    parameters: [{ name: 'limit', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 20, default: 10 } }, { name: 'transport_type', in: 'query', schema: { type: 'string', enum: ['taxi', 'delivery'] } }],
+    responses: { 200: userOk('OK', [recentExample]), 401: { description: 'unauthorized / invalid_or_expired_token' }, 403: { description: 'user_blocked' }, 422: { description: 'validation_error' } }
+  } },
+  '/request/save-recent-search': { post: {
+    tags: ['Recent searches'], summary: 'HOME-05 — save a search; the same route (both points within 50 m) refreshes the existing row', security: bearer,
+    requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['pick_lat', 'pick_lng', 'drop_lat', 'drop_lng', 'pick_address', 'drop_address'], properties: {
+      pick_lat: { type: 'number', example: 22.6867 }, pick_lng: { type: 'number', example: 75.8715 }, drop_lat: { type: 'number', example: 22.7171 }, drop_lng: { type: 'number', example: 75.8683 },
+      pick_address: { type: 'string', example: '301, Atulya IT Park, Indore' }, pick_short_address: { type: 'string', example: 'Atulya IT Park' },
+      drop_address: { type: 'string', example: 'Bhawarkuan Square, Indore' }, drop_short_address: { type: 'string', example: 'Bhawarkuan Square' },
+      total_distance: { type: 'number', example: 4.2, description: 'km' }, total_time: { type: 'number', example: 12, description: 'minutes' }, poly_line: { type: 'string', example: '' },
+      transport_type: { type: 'string', enum: ['taxi', 'delivery'], example: 'taxi' }, module_key: { type: 'string', example: 'one_way' },
+      stops: { type: 'array', maxItems: 3, items: { type: 'object', required: ['lat', 'lng', 'address', 'order'], properties: { lat: { type: 'number' }, lng: { type: 'number' }, address: { type: 'string' }, short_address: { type: 'string' }, order: { type: 'integer', minimum: 1, maximum: 3 } } }, example: [] }
+    } } } } },
+    responses: { 200: userOk('recent_saved', { id: 12 }), 401: { description: 'unauthorized' }, 422: { description: 'validation_error (data.errors.<field>) or same_pick_drop' } }
+  } },
+  '/user/add-favourite-location': { post: {
+    tags: ['Favourites'], summary: 'HOME-06 — add a favourite; the same address_name (any case) updates it', security: bearer,
+    requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['pick_lat', 'pick_lng', 'pick_address', 'address_name'], properties: { pick_lat: { type: 'number', example: 22.7196 }, pick_lng: { type: 'number', example: 75.8577 }, pick_address: { type: 'string', example: 'Rajwada, Indore, Madhya Pradesh' }, address_name: { type: 'string', example: 'Home', maxLength: 40 }, landmark: { type: 'string', example: 'Near gate 2', maxLength: 120 } } } } } },
+    responses: { 200: userOk('favourite_added', favouriteExample), 401: { description: 'unauthorized' }, 422: { description: 'validation_error or favourite_limit_reached (15)' } }
+  } },
+  '/user/favourite-location/{id}': { delete: {
+    tags: ['Favourites'], summary: 'HOME-07 — delete a favourite ("f_91" or "91")', security: bearer,
+    parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', example: 'f_91' } }],
+    responses: { 200: userOk('favourite_deleted', { id: 'f_91' }), 401: { description: 'unauthorized' }, 403: { description: 'forbidden (another user’s favourite)' }, 404: { description: 'favourite_not_found' } }
+  } },
+  '/user/delete-favourite-location': { post: {
+    tags: ['Favourites'], summary: 'HOME-07 (compat) — delete with a POST body', security: bearer,
+    requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['id'], properties: { id: { type: 'string', example: 'f_91' } } } } } },
+    responses: { 200: userOk('favourite_deleted', { id: 'f_91' }), 403: { description: 'forbidden' }, 404: { description: 'favourite_not_found' }, 422: { description: 'validation_error' } }
+  } },
+  '/common/banners': { get: {
+    tags: ['Common'], summary: 'Home banners — live only (active and inside their dates), in admin order. Token optional',
+    security: [{}, { bearerAuth: [] }],
+    parameters: [{ name: 'limit', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 20, default: 10 } }, { name: 'module_key', in: 'query', schema: { type: 'string' }, description: 'Only that module’s banners; omit for all' }],
+    responses: { 200: userOk('OK', [bannerExample]), 401: { description: 'A token was sent but it is invalid' }, 422: { description: 'validation_error' } }
+  } },
+  '/admin/banners': {
+    get: { tags: ['Admin banners'], summary: 'All banners with live/scheduled/expired/inactive stats', security: adminBearer, responses: { 200: adminSuccess('OK', { stats: { total: 3, live: 3, scheduled: 0, expired: 0, inactive: 0 }, banners: [adminBannerExample] }) } },
+    post: { tags: ['Admin banners'], summary: 'Create a banner (image required); added at the end', security: adminBearer, requestBody: bannerForm(['title', 'image']), responses: { 201: adminSuccess('banner_created', { banner: adminBannerExample }), 403: { description: 'admin_forbidden' }, 422: { description: 'validation_error / image_* upload errors' } } }
+  },
+  '/admin/banners/{id}/update': { post: { tags: ['Admin banners'], summary: 'Edit a banner; image optional (old file removed when replaced)', security: adminBearer, parameters: idParam(), requestBody: bannerForm([]), responses: { 200: adminSuccess('banner_updated', { banner: adminBannerExample }), 404: { description: 'banner_not_found' } } } },
+  '/admin/banners/{id}/status': { post: { tags: ['Admin banners'], summary: 'Active or inactive', security: adminBearer, parameters: idParam(), requestBody: adminJsonBody({ type: 'object', required: ['status'], properties: { status: { type: 'string', enum: ['active', 'inactive'] } } }), responses: { 200: adminSuccess('banner_status_updated', { banner: adminBannerExample }) } } },
+  '/admin/banners/reorder': { post: { tags: ['Admin banners'], summary: 'Save display order; ids must list every banner once', security: adminBearer, requestBody: adminJsonBody({ type: 'object', required: ['ids'], properties: { ids: { type: 'array', items: { type: 'integer' } } } }), responses: { 200: adminSuccess('banners_reordered', { banners: [adminBannerExample] }) } } },
+  '/admin/banners/{id}/delete': { post: { tags: ['Admin banners'], summary: 'Delete a banner and its image', security: adminBearer, parameters: idParam(), responses: { 200: adminSuccess('banner_deleted', { id: 1 }), 404: { description: 'banner_not_found' } } } }
 });

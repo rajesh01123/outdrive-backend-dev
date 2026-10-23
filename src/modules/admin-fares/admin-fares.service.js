@@ -2,6 +2,7 @@ import { Op } from 'sequelize';
 import { sequelize } from '../../config/database.js';
 import { Admin, FareHistory, Service, VehicleType, Zone, ZoneVehicleFare } from '../../database/models/index.js';
 import { calculateFare, FARE_CATEGORIES, fareCategoryForService } from '../../shared/fare/fare-calculator.js';
+import { vehicleCategoryMismatch } from '../../shared/fleet/vehicle-rules.js';
 import { AppError } from '../../shared/utils/app-error.js';
 import { publicProfilePictureUrl as publicUploadUrl } from '../../shared/utils/serializers.js';
 
@@ -93,11 +94,8 @@ export const saveFare = async ({ body, adminId }) => {
   await findZone(body.zone_id);
   const vehicle = await VehicleType.findByPk(body.vehicle_type_id);
   if (!vehicle) throw new AppError('vehicle_type_not_found', 404);
-  if (Boolean(vehicle.isShared) !== (body.fare_category === 'shared')) {
-    throw new AppError('validation_error', 422, {
-      errors: { fare_category: body.fare_category === 'shared' ? 'shared fares are only for shared vehicles' : 'shared vehicles only use the shared fare category' }
-    });
-  }
+  const mismatch = vehicleCategoryMismatch(vehicle, body.fare_category);
+  if (mismatch) throw new AppError('validation_error', 422, { errors: { fare_category: mismatch } });
   const values = {
     basePrice: body.base_price,
     baseDistanceKm: body.base_distance_km,

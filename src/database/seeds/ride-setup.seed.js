@@ -12,14 +12,14 @@ import { uploadDirectory } from '../../shared/utils/image-upload.js';
 const assetsDir = path.join(path.dirname(fileURLToPath(import.meta.url)), 'assets', 'vehicles');
 
 const vehicles = [
-  { typeKey: 'bike', name: 'Bike', description: 'Affordable bike ride', capacity: 1, isShared: false },
-  { typeKey: 'auto', name: 'Auto', description: '3 wheeler auto', capacity: 3, isShared: false },
-  { typeKey: 'hatchback', name: 'Hatchback', description: 'Compact car', capacity: 4, isShared: false },
-  { typeKey: 'sedan', name: 'Sedan', description: 'Comfortable sedan', capacity: 4, isShared: false },
-  { typeKey: 'suv', name: 'SUV', description: 'Spacious SUV', capacity: 6, isShared: false },
-  { typeKey: 'premium', name: 'Premium', description: 'Premium / luxury car', capacity: 4, isShared: false },
-  { typeKey: 'shared_car', name: 'Shared Car', description: 'Pay per seat', capacity: 4, isShared: true },
-  { typeKey: 'three_wheeler', name: '3 Wheeler', description: 'Cargo 3 wheeler for parcels', capacity: 1, isShared: false }
+  { typeKey: 'bike', name: 'Bike', description: 'Affordable bike ride', capacity: 1, isShared: false, useFor: 'both', wheels: 2 },
+  { typeKey: 'auto', name: 'Auto', description: '3 wheeler auto', capacity: 3, isShared: false, useFor: 'ride', wheels: 3 },
+  { typeKey: 'hatchback', name: 'Hatchback', description: 'Compact car', capacity: 4, isShared: false, useFor: 'ride', wheels: 4 },
+  { typeKey: 'sedan', name: 'Sedan', description: 'Comfortable sedan', capacity: 4, isShared: false, useFor: 'ride', wheels: 4 },
+  { typeKey: 'suv', name: 'SUV', description: 'Spacious SUV', capacity: 6, isShared: false, useFor: 'ride', wheels: 4 },
+  { typeKey: 'premium', name: 'Premium', description: 'Premium / luxury car', capacity: 4, isShared: false, useFor: 'ride', wheels: 4 },
+  { typeKey: 'shared_car', name: 'Shared Car', description: 'Pay per seat', capacity: 4, isShared: true, useFor: 'ride', wheels: 4 },
+  { typeKey: 'three_wheeler', name: '3 Wheeler', description: 'Cargo 3 wheeler for parcels', capacity: 1, isShared: false, useFor: 'parcel', wheels: 3 }
 ];
 
 // Which vehicles each module offers (ETA spec table).

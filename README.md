@@ -36,7 +36,9 @@ Module documentation is stored beside its audience, so new booking or driver API
 - [User authentication APIs](docs/user/auth-api.md)
 - [User profile APIs](docs/user/profile-api.md)
 - [Rider Home · Zone · ETA APIs](docs/user/ride-api.md)
+- [Rider recent searches · favourites · banners](docs/user/home-api.md)
 - [Admin ride setup APIs](docs/admin/ride-setup-api.md)
+- [Admin banners API](docs/admin/banners-api.md)
 - [Driver API documentation](docs/driver/README.md) — no driver endpoint exists yet
 
 Admin APIs are also available in Swagger under the **Admin auth** tag. They provide profile updates, password reset/change, email-based 2FA, and a one-active-device login policy.

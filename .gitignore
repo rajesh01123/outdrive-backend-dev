@@ -6,6 +6,8 @@ uploads/services/*
 !uploads/services/.gitkeep
 uploads/vehicles/*
 !uploads/vehicles/.gitkeep
+uploads/banners/*
+!uploads/banners/.gitkeep
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

@@ -6,6 +6,8 @@ import { validate, validationError } from '../../middleware/validate.js';
 import { success } from '../../shared/responses/api-response.js';
 import { asyncHandler } from '../../shared/utils/async-handler.js';
 import { publicProfilePictureUrl as publicUploadUrl } from '../../shared/utils/serializers.js';
+import { listLiveBanners } from '../admin-banners/admin-banners.service.js';
+import { publicBannersRequest } from '../admin-banners/admin-banners.validation.js';
 import { checkServiceability, ZONE_CURRENCY } from '../zone/zone.service.js';
 import { cancelPolicyRequest, serviceAvailabilityRequest } from './common.validation.js';
 
@@ -62,6 +64,12 @@ router.get('/cancel-policy', validate(cancelPolicyRequest), asyncHandler(async (
     message: 'OK',
     data: { title: service.cancelPolicyTitle || 'Cancellation policy', body: service.cancelPolicyBody || '' }
   });
+}));
+
+// Home banners — token optional; only active banners inside their date window, in admin order.
+router.get('/banners', optionalAuthenticate, validate(publicBannersRequest), asyncHandler(async (req, res) => {
+  const data = await listLiveBanners({ limit: req.query.limit, moduleKey: req.query.module_key });
+  return success(res, { message: 'OK', data });
 }));
 
 export default router;
