@@ -12,6 +12,9 @@ import adminFaresRoutes from './modules/admin-fares/admin-fares.routes.js';
 import adminBookingsRoutes from './modules/admin-bookings/admin-bookings.routes.js';
 import adminBannersRoutes from './modules/admin-banners/admin-banners.routes.js';
 import adminCmsRoutes from './modules/admin-cms/admin-cms.routes.js';
+import adminAuditRoutes from './modules/admin-audit/admin-audit.routes.js';
+import adminOnboardingRoutes from './modules/admin-onboarding/admin-onboarding.routes.js';
+import adminCouponsRoutes from './modules/admin-coupons/admin-coupons.routes.js';
 
 const router = Router();
 
@@ -27,6 +30,9 @@ router.use('/admin/fares', adminFaresRoutes);
 router.use('/admin/bookings', adminBookingsRoutes);
 router.use('/admin/banners', adminBannersRoutes);
 router.use('/admin/cms', adminCmsRoutes);
+router.use('/admin/audit-logs', adminAuditRoutes);
+router.use('/admin/onboarding', adminOnboardingRoutes);
+router.use('/admin/coupons', adminCouponsRoutes);
 router.use('/admin', adminRoutes);
 
 export default router;

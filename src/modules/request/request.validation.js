@@ -52,7 +52,19 @@ export const etaRequest = (req) => {
   if (schedule === undefined) validationError('schedule_datetime', 'schedule_datetime must be a date and time like 2026-10-23 10:30:00');
   body.schedule_at = schedule;
 
-  body.promo_code = text(body.promo_code);
+  body.promo_code = text(body.promo_code).toUpperCase();
+  if (body.promo_code.length > 20) validationError('promo_code', 'promo_code must not exceed 20 characters');
+};
+
+// HOME-10 — every filter is optional.
+export const promocodeListRequest = (req) => {
+  const { query } = req;
+  query.module_key = text(query.module_key);
+  query.promo_code = text(query.promo_code).toUpperCase().slice(0, 20);
+  if (query.zone_id === undefined || query.zone_id === '') { query.zone_id = null; return; }
+  const zoneId = Number(query.zone_id);
+  if (!Number.isInteger(zoneId) || zoneId < 1) validationError('zone_id', 'zone_id must be a positive integer');
+  query.zone_id = zoneId;
 };
 
 const optionalText = (body, key, max) => {

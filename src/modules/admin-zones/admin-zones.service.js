@@ -1,9 +1,11 @@
+import { createHash } from 'node:crypto';
 import { Op } from 'sequelize';
 import { sequelize } from '../../config/database.js';
 import { Service, Zone, ZoneService, ZoneVehicleFare } from '../../database/models/index.js';
 import { fromGeoJsonPolygon, isSelfIntersecting, polygonArea, polygonBounds, polygonsOverlap, toGeoJsonPolygon } from '../../shared/geo/geo.js';
 import { AppError } from '../../shared/utils/app-error.js';
 import { checkServiceability, ZONE_CURRENCY } from '../zone/zone.service.js';
+import { changedFields, diffChanges, recordAudit } from '../audit/audit.service.js';
 
 const polygonError = (message) => new AppError('validation_error', 422, { errors: { polygon: message } });
 
@@ -61,6 +63,23 @@ const zonePayload = async (zone) => {
   };
 };
 
+const zoneTarget = (zone) => ({ type: 'zone', id: zone.id, label: zone.name });
+
+// What the audit log compares for a zone: the drawn area as a fingerprint, services as the switched-on names.
+const zoneAuditView = (payload) => ({
+  name: payload.name,
+  priority: payload.priority,
+  status: payload.status,
+  area: createHash('sha1').update(JSON.stringify(payload.polygon)).digest('hex'),
+  services: payload.modules.filter((module) => module.is_enabled).map((module) => module.name).join(', ') || 'none'
+});
+
+const zoneChanges = (before, after) => {
+  const changes = diffChanges(before, after, ['name', 'priority', 'status', 'area', 'services']);
+  if (changes?.area) changes.area = { from: 'previous area', to: 'redrawn on the map' };
+  return changes;
+};
+
 const findZone = async (id, options = {}) => {
   const zone = await Zone.findByPk(id, options);
   if (!zone) throw new AppError('zone_not_found', 404);
@@ -115,11 +134,14 @@ export const createZone = async (body) => {
     await saveModules(created.id, enabledIds, transaction);
     return created;
   });
-  return { zone: await zonePayload(zone), warnings: { overlaps: await overlapWarnings(body.polygon, zone.id) } };
+  const payload = await zonePayload(zone);
+  recordAudit({ action: 'zone.created', target: zoneTarget(zone), description: `Created zone ${zone.name} with ${payload.modules_enabled} services on` });
+  return { zone: payload, warnings: { overlaps: await overlapWarnings(body.polygon, zone.id) } };
 };
 
 export const updateZone = async ({ id, body }) => {
   const zone = await findZone(id);
+  const before = zoneAuditView(await zonePayload(zone));
   if (body.polygon) assertValidPolygon(body.polygon);
   if (body.name !== undefined) await assertUniqueName(body.name, zone.id);
   await sequelize.transaction(async (transaction) => {
@@ -131,20 +153,37 @@ export const updateZone = async ({ id, body }) => {
     if (Object.keys(values).length) await zone.update(values, { transaction });
     if (body.enabled_module_ids) await saveModules(zone.id, body.enabled_module_ids, transaction);
   });
-  return { zone: await zonePayload(zone), warnings: { overlaps: await overlapWarnings(fromGeoJsonPolygon(zone.polygon), zone.id) } };
+  const payload = await zonePayload(zone);
+  const changes = zoneChanges(before, zoneAuditView(payload));
+  if (changes) recordAudit({ action: 'zone.updated', target: zoneTarget(zone), changes, description: `Edited zone ${zone.name}: ${changedFields(changes)}` });
+  return { zone: payload, warnings: { overlaps: await overlapWarnings(fromGeoJsonPolygon(zone.polygon), zone.id) } };
 };
 
 export const updateZoneStatus = async ({ id, status }) => {
   const zone = await findZone(id);
+  const previous = zone.status;
   await zone.update({ status });
+  if (previous !== status) {
+    recordAudit({ action: 'zone.status_changed', target: zoneTarget(zone), changes: { status: { from: previous, to: status } }, description: `Zone ${zone.name} set to ${status}` });
+  }
   return zonePayload(zone);
 };
 
 export const setZoneModule = async ({ id, serviceId, isEnabled }) => {
   const zone = await findZone(id);
-  if (!(await Service.findByPk(serviceId))) throw new AppError('service_not_found', 404);
-  const [link] = await ZoneService.findOrCreate({ where: { zoneId: zone.id, serviceId }, defaults: { isEnabled } });
+  const service = await Service.findByPk(serviceId);
+  if (!service) throw new AppError('service_not_found', 404);
+  const [link, created] = await ZoneService.findOrCreate({ where: { zoneId: zone.id, serviceId }, defaults: { isEnabled } });
+  const wasEnabled = created ? false : Boolean(link.isEnabled);
   if (link.isEnabled !== isEnabled) await link.update({ isEnabled });
+  if (wasEnabled !== isEnabled) {
+    recordAudit({
+      action: 'zone.service_changed',
+      target: zoneTarget(zone),
+      changes: { [service.name]: { from: wasEnabled ? 'on' : 'off', to: isEnabled ? 'on' : 'off' } },
+      description: `${service.name} turned ${isEnabled ? 'on' : 'off'} in ${zone.name}`
+    });
+  }
   return zonePayload(zone);
 };
 

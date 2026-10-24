@@ -3,6 +3,7 @@ import { sequelize } from '../../config/database.js';
 import { Device, User, UserSession } from '../../database/models/index.js';
 import { AppError } from '../../shared/utils/app-error.js';
 import { publicProfilePictureUrl } from '../../shared/utils/serializers.js';
+import { changedFields, diffChanges, maskMobile, recordAudit } from '../audit/audit.service.js';
 
 export const USERS_PAGE_LIMIT = 10;
 
@@ -30,6 +31,11 @@ const findUser = async (id, options = {}) => {
   if (!user || user.status === 'deleted') throw new AppError('user_not_found', 404);
   return user;
 };
+
+const userTarget = (user) => ({ type: 'user', id: user.id, label: `${user.name || 'User'} (${maskMobile(user.mobile)})` });
+// Phone numbers are masked in the audit log.
+const userAuditView = (payload) => ({ ...payload, emergency_contact_number: maskMobile(payload.emergency_contact_number) });
+const USER_AUDIT_FIELDS = ['name', 'gender', 'emergency_contact_name', 'emergency_contact_number'];
 
 const revokeSessions = (userId, transaction) =>
   UserSession.update({ revokedAt: new Date() }, { where: { userId, revokedAt: null }, transaction });
@@ -66,21 +72,34 @@ export const getUser = async (id) => adminUserPayload(await findUser(id));
 
 export const updateUser = async ({ id, body }) => {
   const user = await findUser(id);
+  const before = userAuditView(adminUserPayload(user));
   const values = {};
   if (body.name !== undefined) values.name = body.name;
   if (body.gender !== undefined) values.gender = body.gender || null;
   if (body.emergency_contact_name !== undefined) values.emergencyContactName = body.emergency_contact_name || null;
   if (body.emergency_contact_number !== undefined) values.emergencyContactNumber = body.emergency_contact_number || null;
   if (Object.keys(values).length) await user.update(values);
-  return adminUserPayload(user);
+  const payload = adminUserPayload(user);
+  const changes = diffChanges(before, userAuditView(payload), USER_AUDIT_FIELDS);
+  if (changes) recordAudit({ action: 'user.updated', target: userTarget(user), changes, description: `Edited ${user.name}: ${changedFields(changes)}` });
+  return payload;
 };
 
 export const updateUserStatus = ({ id, status }) =>
   sequelize.transaction(async (transaction) => {
     const user = await findUser(id, { transaction, lock: transaction.LOCK.UPDATE });
+    const previous = toAdminStatus(user.status);
     await user.update({ status: toDbStatus(status) }, { transaction });
     // An inactive user is signed out of every device straight away.
     if (status === 'inactive') await revokeSessions(user.id, transaction);
+    if (previous !== status) {
+      recordAudit({
+        action: 'user.status_changed',
+        target: userTarget(user),
+        changes: { status: { from: previous, to: status } },
+        description: status === 'inactive' ? `Set ${user.name} inactive and signed them out of every device` : `Set ${user.name} active again`
+      }, { transaction });
+    }
     return adminUserPayload(user);
   });
 
@@ -91,4 +110,5 @@ export const deleteUser = ({ id, reason }) =>
     await Device.update({ userId: null }, { where: { userId: user.id }, transaction });
     await user.update({ status: 'deleted', deleteReason: reason }, { transaction });
     await user.destroy({ transaction });
+    recordAudit({ action: 'user.deleted', target: userTarget(user), description: `Deleted ${user.name}. Reason: ${reason}` }, { transaction });
   });

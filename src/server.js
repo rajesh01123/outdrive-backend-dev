@@ -6,11 +6,15 @@ import { env } from './config/env.js';
 import { openApiSpec } from './config/swagger.js';
 import { errorHandler, notFoundHandler } from './middleware/error-handler.js';
 import routes from './routes.js';
+import { startAuditRetention } from './modules/audit/audit.service.js';
 import cmsWebRoutes from './modules/cms/cms-web.routes.js';
 
 const app = express();
 
 app.disable('x-powered-by');
+// Behind nginx on the same server, req.ip is the visitor's address (audit logs, admin sessions).
+// Only a proxy on this machine is trusted, so outside callers cannot fake X-Forwarded-For.
+app.set('trust proxy', 'loopback');
 app.use(cors());
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
@@ -27,6 +31,7 @@ app.use(errorHandler);
 
 const start = async () => {
   await connectDatabase();
+  startAuditRetention();
   app.listen(env.port, () => console.info(`OutDrive API listening on port ${env.port}`));
 };
 

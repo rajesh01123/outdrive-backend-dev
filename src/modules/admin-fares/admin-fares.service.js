@@ -5,6 +5,7 @@ import { calculateFare, FARE_CATEGORIES, fareCategoryForService } from '../../sh
 import { vehicleCategoryMismatch } from '../../shared/fleet/vehicle-rules.js';
 import { AppError } from '../../shared/utils/app-error.js';
 import { publicProfilePictureUrl as publicUploadUrl } from '../../shared/utils/serializers.js';
+import { diffChanges, recordAudit } from '../audit/audit.service.js';
 
 export const HISTORY_PAGE_LIMIT = 20;
 
@@ -37,6 +38,9 @@ const vehicleLite = (vehicle) => ({
   is_shared: Boolean(vehicle.isShared),
   status: vehicle.status
 });
+
+const FARE_AUDIT_FIELDS = ['base_price', 'base_distance_km', 'price_per_km', 'free_minutes', 'price_per_min', 'min_fare', 'tax_percent', 'free_waiting_mins', 'waiting_charge_per_min', 'payment_types', 'is_default', 'status'];
+const fareTarget = (fare, zone, vehicle) => ({ type: 'fare', id: fare.id, label: `${vehicle.name} · ${fare.fareCategory} · ${zone.name}` });
 
 const findZone = async (id) => {
   const zone = await Zone.findByPk(id);
@@ -91,7 +95,7 @@ export const listFares = async ({ zoneId }) => {
 };
 
 export const saveFare = async ({ body, adminId }) => {
-  await findZone(body.zone_id);
+  const zone = await findZone(body.zone_id);
   const vehicle = await VehicleType.findByPk(body.vehicle_type_id);
   if (!vehicle) throw new AppError('vehicle_type_not_found', 404);
   const mismatch = vehicleCategoryMismatch(vehicle, body.fare_category);
@@ -118,7 +122,17 @@ export const saveFare = async ({ body, adminId }) => {
     else fare = await ZoneVehicleFare.create({ ...where, ...values }, { transaction });
     if (fare.isDefault) await clearOtherDefaults(fare, transaction);
     await recordHistory(fare, { adminId, action: oldValues ? 'updated' : 'created', oldValues }, transaction);
-    return farePayload(fare);
+    const payload = farePayload(fare);
+    const changes = diffChanges(oldValues, payload, FARE_AUDIT_FIELDS);
+    if (!oldValues || changes) {
+      recordAudit({
+        action: 'fare.saved',
+        target: fareTarget(fare, zone, vehicle),
+        changes,
+        description: `${oldValues ? 'Updated' : 'Created'} the ${vehicle.name} ${fare.fareCategory} fare in ${zone.name}`
+      }, { transaction });
+    }
+    return payload;
   });
 };
 
@@ -130,14 +144,21 @@ export const updateFareStatus = ({ id, status, adminId }) =>
     const oldValues = farePayload(fare);
     await fare.update({ status }, { transaction });
     await recordHistory(fare, { adminId, action: 'status_changed', oldValues }, transaction);
+    const [zone, vehicle] = await Promise.all([Zone.findByPk(fare.zoneId, { transaction }), VehicleType.findByPk(fare.vehicleTypeId, { transaction })]);
+    recordAudit({
+      action: 'fare.status_changed',
+      target: fareTarget(fare, zone, vehicle),
+      changes: { status: { from: oldValues.status, to: status } },
+      description: `The ${vehicle.name} ${fare.fareCategory} fare in ${zone.name} set to ${status}`
+    }, { transaction });
     return farePayload(fare);
   });
 
 const copiedColumns = ['basePrice', 'baseDistanceKm', 'pricePerKm', 'freeMinutes', 'pricePerMin', 'minFare', 'taxPercent', 'freeWaitingMins', 'waitingChargePerMin', 'paymentTypes', 'isDefault', 'status'];
 
 export const copyFares = async ({ fromZoneId, toZoneId, overwrite, adminId }) => {
-  await findZone(fromZoneId);
-  await findZone(toZoneId);
+  const fromZone = await findZone(fromZoneId);
+  const toZone = await findZone(toZoneId);
   return sequelize.transaction(async (transaction) => {
     const source = await ZoneVehicleFare.findAll({ where: { zoneId: fromZoneId }, transaction });
     if (!source.length) throw new AppError('no_fares_to_copy', 422, { errors: { from_zone_id: 'the source zone has no fares yet' } });
@@ -152,6 +173,11 @@ export const copyFares = async ({ fromZoneId, toZoneId, overwrite, adminId }) =>
       await recordHistory(fare, { adminId, action: 'copied', oldValues }, transaction);
       result[existing ? 'updated' : 'created'] += 1;
     }
+    recordAudit({
+      action: 'fare.copied',
+      target: { type: 'zone', id: toZone.id, label: toZone.name },
+      description: `Copied fares from ${fromZone.name} to ${toZone.name}: ${result.created} created, ${result.updated} updated, ${result.skipped} skipped`
+    }, { transaction });
     return result;
   });
 };

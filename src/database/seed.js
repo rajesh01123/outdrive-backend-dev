@@ -2,6 +2,7 @@ import { connectDatabase, sequelize } from '../config/database.js';
 import { seedAdmin } from './seeds/admin.seed.js';
 import { seedBanners } from './seeds/banners.seed.js';
 import { seedCms } from './seeds/cms.seed.js';
+import { seedCoupons } from './seeds/coupons.seed.js';
 import { seedRideSetup } from './seeds/ride-setup.seed.js';
 import { seedServices } from './seeds/services.seed.js';
 
@@ -12,7 +13,8 @@ const steps = [
   ['Ride modules', seedServices],
   ['Ride setup (vehicles, mapping, zone, fares)', seedRideSetup],
   ['Home banners', seedBanners],
-  ['Content pages, FAQs, support contacts', seedCms]
+  ['Content pages, FAQs, support contacts', seedCms],
+  ['Demo coupons', seedCoupons]
 ];
 
 const seed = async () => {

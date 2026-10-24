@@ -24,6 +24,6 @@ export const authenticateAdmin = asyncHandler(async (req, res, next) => {
 
   await session.update({ lastActiveAt: new Date() });
   req.admin = admin;
-  req.adminAuth = { sessionId: session.id, jti: payload.jti, role: admin.role };
+  req.adminAuth = { sessionId: session.id, jti: payload.jti, role: admin.role, deviceName: session.deviceName };
   next();
 });

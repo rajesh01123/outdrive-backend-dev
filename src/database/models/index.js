@@ -19,6 +19,8 @@ import { RecentSearch } from './recent-search.model.js';
 import { FavouriteLocation } from './favourite-location.model.js';
 import { Banner } from './banner.model.js';
 import { CmsPage, Faq, SupportContact } from './cms.models.js';
+import { AuditLog } from './audit-log.model.js';
+import { Coupon, OnboardingSlide } from './promo.models.js';
 
 User.hasMany(UserSession, { foreignKey: 'userId', as: 'sessions' });
 UserSession.belongsTo(User, { foreignKey: 'userId', as: 'user' });
@@ -60,5 +62,6 @@ CmsPage.belongsTo(Admin, { foreignKey: 'updatedBy', as: 'editor' });
 export {
   User, OtpVerification, UserSession, Device, Admin, Driver, AdminSession, AdminOtpVerification,
   Service, Zone, ZoneService, VehicleType, ServiceVehicleType, ZoneVehicleFare, FareHistory, Booking, BookingParcel,
-  RecentSearch, FavouriteLocation, Banner, CmsPage, Faq, SupportContact
+  RecentSearch, FavouriteLocation, Banner, CmsPage, Faq, SupportContact, AuditLog,
+  OnboardingSlide, Coupon
 };

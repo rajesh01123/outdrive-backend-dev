@@ -332,7 +332,7 @@ When `is_serviceable` is `false`, `zone_id` and `zone_name` are `""` — do not 
 | `is_out_station`, `is_round_trip`, `shared_ride` | 0/1 | Optional. Pricing follows the module itself: `round_trip` doubles distance and time, `shared` multiplies by seats |
 | `schedule_datetime` | string | **Required for `scheduled`**: 30 minutes to 7 days ahead. `"2026-10-23 10:30:00"` without an offset is Indian time. Ignored for other modules |
 | `seats_taken` | number | 1–20, default 1. Used by `shared`; vehicles with fewer seats are left out |
-| `promo_code` | string | Must be `""` for now |
+| `promo_code` | string | Optional coupon code; `""` = none. The server applies it per vehicle. See [onboarding-promo-api.md](onboarding-promo-api.md) |
 
 ### 200 — One Way (all 6 vehicles, full objects)
 
@@ -616,7 +616,7 @@ Each vehicle in `data`:
 | `min_fare_applied` | boolean | `true` when the minimum fare was charged instead of the calculation |
 | `free_waiting_time_in_mins_before_trip_start` | number | Free waiting at pickup |
 | `waiting_charge` | number | ₹ per minute after free waiting |
-| `promocode_id` | string | `""` |
+| `promocode_id` | string | `promo_<id>` when a coupon was applied to this vehicle, else `""`. The fields `subtotal`, `promo_discount`, `promo_code`, `promo_applied` and `promo_message` are explained in [onboarding-promo-api.md](onboarding-promo-api.md) |
 | `user_wallet_balance` | number | The user's wallet balance |
 | `preference` | array | `[]` |
 
@@ -1020,19 +1020,9 @@ Other 401 messages: `invalid_or_expired_token`, `session_revoked`; `403 user_blo
 }
 ```
 
-**422 — promo code sent**
+**422 — promo code errors**
 
-```json
-{
-  "success": false,
-  "message": "invalid_promo_code",
-  "data": {
-    "errors": {
-      "promo_code": "promo codes are not available yet"
-    }
-  }
-}
-```
+`invalid_promo_code`, `promo_expired`, `promo_usage_limit` and `promo_min_fare_not_met`, with real examples, are in [onboarding-promo-api.md](onboarding-promo-api.md).
 
 **422 — field error** (the first invalid field is reported)
 
@@ -1083,7 +1073,7 @@ Other 401 messages: `invalid_or_expired_token`, `session_revoked`; `403 user_blo
 | 422 | `validation_error` | Bad or missing field |
 | 422 | `out_of_service_area` | Pickup not serviceable for this module |
 | 422 | `module_not_available` | Module is Coming soon or inactive |
-| 422 | `invalid_promo_code` | Any promo code (coupons not live yet) |
+| 422 | `invalid_promo_code` · `promo_expired` · `promo_usage_limit` · `promo_min_fare_not_met` | Coupon problems: see [onboarding-promo-api.md](onboarding-promo-api.md) |
 
 ---
 

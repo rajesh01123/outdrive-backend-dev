@@ -4,6 +4,7 @@ import { vehicleCategoryMismatch, vehicleModuleMismatch } from '../../shared/fle
 import { AppError } from '../../shared/utils/app-error.js';
 import { removeStoredUpload } from '../../shared/utils/image-upload.js';
 import { publicProfilePictureUrl as publicUploadUrl } from '../../shared/utils/serializers.js';
+import { changedFields, diffChanges, recordAudit } from '../audit/audit.service.js';
 
 export const vehiclePayload = (vehicle) => ({
   id: Number(vehicle.id),
@@ -18,6 +19,9 @@ export const vehiclePayload = (vehicle) => ({
   sort_order: vehicle.sortOrder,
   status: vehicle.status
 });
+
+const vehicleTarget = (vehicle) => ({ type: 'vehicle', id: vehicle.id, label: vehicle.name });
+const VEHICLE_AUDIT_FIELDS = ['name', 'description', 'capacity', 'is_shared', 'use_for', 'wheels', 'status'];
 
 const findVehicle = async (id, options = {}) => {
   const vehicle = await VehicleType.findByPk(id, options);
@@ -51,6 +55,7 @@ export const createVehicleType = async ({ body, icon }) => {
     status: body.status,
     sortOrder: lastOrder + 1
   });
+  recordAudit({ action: 'vehicle.created', target: vehicleTarget(vehicle), description: `Created vehicle ${vehicle.name} (${vehicle.typeKey})` });
   return vehiclePayload(vehicle);
 };
 
@@ -82,6 +87,7 @@ export const updateVehicleType = async ({ id, body, icon }) => {
     throw new AppError('vehicle_type_key_locked', 422, { errors: { type_key: 'type_key cannot be changed after the vehicle is created' } });
   }
   await assertStillFits(vehicle, body);
+  const before = vehiclePayload(vehicle);
   const values = {};
   if (body.name !== undefined) values.name = body.name;
   if (body.description !== undefined) values.description = body.description || null;
@@ -94,12 +100,19 @@ export const updateVehicleType = async ({ id, body, icon }) => {
   if (icon) values.icon = icon;
   if (Object.keys(values).length) await vehicle.update(values);
   if (icon && previousIcon !== icon) await removeStoredUpload(previousIcon);
-  return vehiclePayload(vehicle);
+  const payload = vehiclePayload(vehicle);
+  const changes = { ...diffChanges(before, payload, VEHICLE_AUDIT_FIELDS), ...(icon ? { icon: { from: previousIcon ? 'old icon' : null, to: 'new icon' } } : {}) };
+  if (Object.keys(changes).length) recordAudit({ action: 'vehicle.updated', target: vehicleTarget(vehicle), changes, description: `Edited ${vehicle.name}: ${changedFields(changes)}` });
+  return payload;
 };
 
 export const updateVehicleStatus = async ({ id, status }) => {
   const vehicle = await findVehicle(id);
+  const previous = vehicle.status;
   await vehicle.update({ status });
+  if (previous !== status) {
+    recordAudit({ action: 'vehicle.status_changed', target: vehicleTarget(vehicle), changes: { status: { from: previous, to: status } }, description: `${vehicle.name} set to ${status}` });
+  }
   return vehiclePayload(vehicle);
 };
 
@@ -110,10 +123,12 @@ export const reorderVehicleTypes = (ids) =>
       throw new AppError('validation_error', 422, { errors: { ids: 'ids must contain every vehicle exactly once' } });
     }
     const byId = new Map(vehicles.map((vehicle) => [Number(vehicle.id), vehicle]));
+    let moved = 0;
     for (const [index, id] of ids.entries()) {
       const vehicle = byId.get(id);
-      if (vehicle.sortOrder !== index + 1) await vehicle.update({ sortOrder: index + 1 }, { transaction });
+      if (vehicle.sortOrder !== index + 1) { await vehicle.update({ sortOrder: index + 1 }, { transaction }); moved += 1; }
     }
+    if (moved) recordAudit({ action: 'vehicles.reordered', description: `New order: ${ids.map((id) => byId.get(id).name).join(', ')}` }, { transaction });
     return ids.map((id) => vehiclePayload(byId.get(id)));
   });
 
@@ -154,6 +169,19 @@ export const saveMapping = (mapping) =>
       if (reasons.length) errors[`mapping.${serviceId}`] = [...new Set(reasons)].join('; ');
     }
     if (Object.keys(errors).length) throw new AppError('validation_error', 422, { errors });
+
+    // Audit: the vehicles each module offered before and after, by name.
+    const links = await ServiceVehicleType.findAll({ transaction });
+    const names = (vehicleIds) => vehicleIds.map((id) => vehicleById.get(Number(id))?.name).filter(Boolean).sort().join(', ') || 'none';
+    const changes = {};
+    for (const [serviceId, vehicleIds] of Object.entries(mapping)) {
+      const from = names(links.filter((link) => Number(link.serviceId) === Number(serviceId)).map((link) => link.vehicleTypeId));
+      const to = names(vehicleIds);
+      if (from !== to) changes[serviceById.get(Number(serviceId)).name] = { from, to };
+    }
+    if (Object.keys(changes).length) {
+      recordAudit({ action: 'vehicles.mapping_saved', changes, description: `Changed the vehicles offered in ${Object.keys(changes).join(', ')}` }, { transaction });
+    }
 
     for (const [serviceId, vehicleIds] of Object.entries(mapping)) {
       await ServiceVehicleType.destroy({ where: { serviceId: Number(serviceId) }, transaction });

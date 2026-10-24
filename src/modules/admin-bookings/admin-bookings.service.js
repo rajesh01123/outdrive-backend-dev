@@ -4,6 +4,7 @@ import { Booking, BookingParcel, Service, User, Zone } from '../../database/mode
 import { AppError } from '../../shared/utils/app-error.js';
 import { bookingCode, parseBookingCode, requestCode } from '../../shared/utils/booking-code.js';
 import { STATUS_GROUPS } from './admin-bookings.validation.js';
+import { recordAudit } from '../audit/audit.service.js';
 
 export const BOOKINGS_PAGE_LIMIT = 10;
 const CANCELLABLE = ['searching', 'scheduled'];
@@ -132,6 +133,11 @@ export const cancelBooking = async ({ id, reason }) => {
     // Once a driver is involved the trip flow (next phase) owns cancellation and its charges.
     if (!CANCELLABLE.includes(booking.status)) throw new AppError('booking_not_cancellable', 422, { status: booking.status });
     await booking.update({ status: 'cancelled', cancelledBy: 'admin', cancelReason: reason, cancelledAt: new Date() }, { transaction });
+    recordAudit({
+      action: 'booking.cancelled',
+      target: { type: 'booking', id: booking.id, label: bookingCode(booking.id) },
+      description: `Cancelled ${bookingCode(booking.id)}. Reason: ${reason}`
+    }, { transaction });
   });
   return getBooking(id);
 };

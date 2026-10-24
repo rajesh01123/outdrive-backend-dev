@@ -5,6 +5,7 @@ import { userPayload } from '../../shared/utils/serializers.js';
 import { findUserByMobile, revokeSessions } from './auth.repository.js';
 import { createAndSendOtp, verifyOtp } from './otp.service.js';
 import { issueOtpProof, issueUserSession } from './token.service.js';
+import { maskMobile, recordAudit, userActor } from '../audit/audit.service.js';
 
 const assertOtpPurposeMatchesAccount = async ({ mobile, countryCode, purpose }) => {
   const user = await findUserByMobile(mobile, countryCode);
@@ -41,9 +42,25 @@ export const login = async ({ mobile, country_code: countryCode, otp, device_tok
   if (!user || user.deletedAt || user.status === 'deleted') {
     throw new AppError('user_not_found_use_register', 404, { is_new_user: true, next: 'register' });
   }
-  if (user.status === 'blocked') throw new AppError('user_blocked', 403);
+  if (user.status === 'blocked') {
+    recordAudit({ action: 'app.user_login_failed', status: 'failed', actor: userActor(user), device: loginBy, description: 'Sign-in refused: the account is inactive (blocked)' });
+    throw new AppError('user_blocked', 403);
+  }
 
-  return sequelize.transaction(async (transaction) => {
+  try {
+    return await signIn({ user, mobile, countryCode, otp, deviceToken, loginBy });
+  } catch (error) {
+    if (error instanceof AppError && (error.message === 'invalid_otp' || error.message.startsWith('otp_'))) {
+      const description = error.message === 'invalid_otp' ? 'Wrong OTP' : `OTP rejected (${error.message})`;
+      recordAudit({ action: 'app.user_login_failed', status: 'failed', actor: userActor(user), device: loginBy, description });
+    }
+    throw error;
+  }
+};
+
+// The sign-in itself; login() above records a failed attempt when the OTP is refused.
+const signIn = ({ user, mobile, countryCode, otp, deviceToken, loginBy }) =>
+  sequelize.transaction(async (transaction) => {
     const currentUser = await User.findByPk(user.id, { transaction, lock: transaction.LOCK.UPDATE });
     if (!currentUser || currentUser.status === 'deleted') throw new AppError('user_not_found_use_register', 404, { is_new_user: true, next: 'register' });
     if (currentUser.status === 'blocked') throw new AppError('user_blocked', 403);
@@ -51,6 +68,7 @@ export const login = async ({ mobile, country_code: countryCode, otp, device_tok
     await verifyOtp({ mobile, countryCode, otp, purpose: 'login', transaction, consume: true });
     await revokeSessions({ userId: currentUser.id, deviceToken, transaction });
     const accessToken = await issueUserSession({ user: currentUser, deviceToken, loginBy, transaction });
+    recordAudit({ action: 'app.user_login', actor: userActor(currentUser), device: loginBy, description: `Signed in with OTP (${maskMobile(currentUser.mobile)})` }, { transaction });
     return {
       access_token: accessToken,
       token_type: 'Bearer',
@@ -59,7 +77,6 @@ export const login = async ({ mobile, country_code: countryCode, otp, device_tok
       user: userPayload(currentUser)
     };
   });
-};
 
 export const register = async ({ mobile, country_code: countryCode, otp, name, device_token: deviceToken, login_by: loginBy, profilePicture }) =>
   sequelize.transaction(async (transaction) => {
@@ -72,6 +89,7 @@ export const register = async ({ mobile, country_code: countryCode, otp, name, d
       { transaction }
     );
     const accessToken = await issueUserSession({ user, deviceToken, loginBy, transaction });
+    recordAudit({ action: 'app.user_registered', actor: userActor(user), device: loginBy, description: `Signed up with ${maskMobile(mobile)}` }, { transaction });
     return {
       access_token: accessToken,
       token_type: 'Bearer',

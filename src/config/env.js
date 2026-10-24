@@ -42,6 +42,8 @@ export const env = Object.freeze({
     otpMaxAttempts: integer('ADMIN_OTP_MAX_ATTEMPTS', 5),
     fixedOtp: process.env.NODE_ENV === 'production' ? '' : (process.env.ADMIN_DEV_OTP || '123456')
   },
+  // Audit logs older than this are removed once a day; 0 keeps them forever.
+  auditLogRetentionDays: integer('AUDIT_LOG_RETENTION_DAYS', 180),
   payments: {
     // Stays off until a payment gateway is integrated, so the app never offers "online".
     onlineEnabled: process.env.ONLINE_PAYMENT_ENABLED === 'true'

@@ -2,11 +2,18 @@ import { success } from '../../shared/responses/api-response.js';
 import { asyncHandler } from '../../shared/utils/async-handler.js';
 import * as recentSearchService from './recent-search.service.js';
 import * as requestService from './request.service.js';
+import { listAvailableCoupons } from '../coupon/coupon.service.js';
 
 // ETA-01 keeps enabled_dispatch_type beside data (app contract), so it builds the envelope itself.
 export const eta = asyncHandler(async (req, res) => {
   const { message, enabledDispatchType, data } = await requestService.estimate({ body: req.body, user: req.user });
   return res.status(200).json({ success: true, message, enabled_dispatch_type: enabledDispatchType, data });
+});
+
+// HOME-10
+export const promocodeList = asyncHandler(async (req, res) => {
+  const data = await listAvailableCoupons({ userId: req.auth.userId, moduleKey: req.query.module_key, zoneId: req.query.zone_id, appliedCode: req.query.promo_code });
+  return success(res, { message: 'OK', data });
 });
 
 export const listRecentSearches = asyncHandler(async (req, res) => {

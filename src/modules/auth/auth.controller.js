@@ -3,6 +3,7 @@ import { success } from '../../shared/responses/api-response.js';
 import { asyncHandler } from '../../shared/utils/async-handler.js';
 import { storedProfilePath } from '../../shared/utils/profile-upload.js';
 import { revokeSessions } from './auth.repository.js';
+import { recordAudit } from '../audit/audit.service.js';
 
 export const validateMobile = asyncHandler(async (req, res) => {
   const result = await authService.validateMobile(req.body);
@@ -31,5 +32,6 @@ export const register = asyncHandler(async (req, res) => {
 
 export const logout = asyncHandler(async (req, res) => {
   await revokeSessions({ userId: req.auth.userId, deviceToken: req.body.device_token });
+  recordAudit({ action: 'app.user_logout', description: 'Signed out of the app' });
   return success(res, { message: 'logged_out' });
 });

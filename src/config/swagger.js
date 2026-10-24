@@ -453,3 +453,116 @@ Object.assign(openApiSpec.paths, {
   ...cmsAdminPaths({ base: '/admin/cms/faqs', key: 'faq', listKey: 'faqs', message: 'faq', noun: 'FAQ', example: adminFaq, body: cmsFaqBody, required: ['question', 'answer'], statuses: ['published', 'draft'], list: { stats: { total: 9, published: 9, categories: 4 }, url: `${cmsHost}/pages/faq`, faqs: [adminFaq] } }),
   ...cmsAdminPaths({ base: '/admin/cms/support-contacts', key: 'contact', listKey: 'contacts', message: 'support_contact', noun: 'support contact', example: adminContact, body: cmsContactBody, required: ['type', 'label', 'value'], statuses: ['active', 'inactive'], list: { stats: { total: 5, active: 2 }, url: `${cmsHost}/pages/help-and-support`, contacts: [adminContact] } })
 });
+
+// ---------- Admin audit logs (read-only, super admin) ----------
+const auditLogExample = {
+  id: 412,
+  action: 'fare.saved',
+  action_label: 'Fare saved',
+  module: 'fares',
+  module_label: 'Fares',
+  status: 'success',
+  actor: { type: 'admin', id: 1, name: 'Rajesh', role: 'super_admin' },
+  target: { type: 'fare', id: '7', label: 'Cab · city · Indore City' },
+  description: 'Updated the Cab city fare in Indore City',
+  changes: { base_price: { from: 30, to: 35 }, price_per_km: { from: 12, to: 13 } },
+  ip_address: '103.21.58.14',
+  user_agent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/130.0',
+  device: 'Office laptop',
+  created_at: '2026-10-24T06:49:05.000Z'
+};
+const auditQuery = (name, description, schema = { type: 'string' }) => ({ name, in: 'query', required: false, description, schema });
+
+openApiSpec.tags.push({ name: 'Admin audit logs', description: 'Who did what: admin sign-ins and changes, user app sign-ins and profile events. Read-only; super_admin only. Passwords, OTPs and tokens are never stored; phone numbers are masked.' });
+
+Object.assign(openApiSpec.paths, {
+  '/admin/audit-logs': { get: {
+    tags: ['Admin audit logs'], summary: 'Activity feed, newest first, with today\'s counts and the filter options', security: adminBearer,
+    parameters: [
+      auditQuery('page', 'Default 1', { type: 'integer', minimum: 1 }),
+      auditQuery('limit', 'Default 20, max 100', { type: 'integer', minimum: 1, maximum: 100 }),
+      auditQuery('search', 'Matches the actor name, description or record (max 100 characters)'),
+      auditQuery('action', 'One action key from filters.actions, e.g. admin.login_failed'),
+      auditQuery('module', 'One of filters.modules: auth, profile, users, services, zones, vehicles, fares, bookings, banners, content, app'),
+      auditQuery('actor_type', 'admin, user, driver or system', { type: 'string', enum: ['admin', 'user', 'driver', 'system'] }),
+      auditQuery('status', 'success or failed', { type: 'string', enum: ['success', 'failed'] }),
+      auditQuery('date', 'One Indian (IST) calendar day, YYYY-MM-DD', { type: 'string', example: '2026-10-24' })
+    ],
+    responses: {
+      200: adminSuccess('OK', {
+        stats: { today: 42, failed_today: 3, retention_days: 180 },
+        logs: [auditLogExample],
+        pagination: { page: 1, limit: 20, total: 1, total_pages: 1 },
+        filters: { modules: [{ key: 'fares', label: 'Fares' }], actions: [{ key: 'fare.saved', module: 'fares', label: 'Fare saved' }], actor_types: ['admin', 'user', 'driver', 'system'], statuses: ['success', 'failed'] }
+      }),
+      401: { description: 'admin_unauthorized' },
+      403: { description: 'admin_forbidden (operations and support roles)' },
+      422: { description: 'validation_error (data.errors.<field>)' }
+    }
+  } },
+  '/admin/audit-logs/{id}': { get: {
+    tags: ['Admin audit logs'], summary: 'One log entry', security: adminBearer, parameters: idParam(412),
+    responses: { 200: adminSuccess('OK', { log: auditLogExample }), 403: { description: 'admin_forbidden' }, 404: { description: 'audit_log_not_found' } }
+  } }
+});
+
+// ---------- HOME-09 onboarding, HOME-10 promo list, ETA promo, admin coupons + onboarding ----------
+openApiSpec.paths['/request/eta'].post.requestBody.content['application/json'].schema.properties.promo_code = { type: 'string', example: 'SAVE50', description: 'Optional coupon code (case-insensitive, max 20); "" = none. Applied per vehicle by the server' };
+openApiSpec.paths['/request/eta'].post.responses[200].content['application/json'].example.data = [{ ...etaItemExample, subtotal: 205, total: 155, min_amount: 155, has_discount: true, discount_total: 50, promo_discount: 50, promo_code: 'SAVE50', promocode_id: 'promo_1', promo_applied: true, promo_message: '' }];
+openApiSpec.paths['/request/eta'].post.responses[422] = { description: 'validation_error | out_of_service_area | module_not_available | invalid_promo_code | promo_expired | promo_usage_limit | promo_min_fare_not_met (data.errors.promo_code; minimum_trip_amount for the last one)' };
+
+const couponPublicExample = { id: 'promo_1', code: 'SAVE50', title: 'Flat ₹50 off', description: 'Valid on rides above ₹200', discount_type: 'flat', discount_value: 50, minimum_trip_amount: 200, maximum_discount_amount: 50, discount_percent: 0, uses_per_user: 3, from: '2026-10-23T18:30:00.000Z', to: '2027-01-22T18:29:59.000Z', active: true, is_applied: false };
+const slidePublicExample = { id: 'ob_5', order_by: 1, title: 'Book in seconds', description: 'Choose pickup and drop, see the fare, then ride.', image: `${env.appUrl}/uploads/onboarding/slide1.webp`, active: true };
+const adminCouponExample = { id: 19, code: 'WEEKEND25', title: '25% off this weekend', description: 'Up to ₹75 off on city rides', discount_type: 'percent', discount_value: 25, min_trip_amount: 120, max_discount_amount: 75, uses_per_user: 2, total_uses_limit: 500, module_keys: ['one_way', 'scheduled'], zone_ids: [1], starts_at: '2026-10-24T18:30:00.000Z', ends_at: '2026-10-26T18:29:00.000Z', status: 'active', state: 'scheduled', used_count: 0, created_at: '2026-10-24T07:49:22.641Z', updated_at: '2026-10-24T07:49:22.641Z' };
+const adminSlideExample = { id: 5, title: 'Book in seconds', description: 'Choose pickup and drop, see the fare, then ride.', title_hi: 'सेकंडों में बुक करें', description_hi: '', image: slidePublicExample.image, sort_order: 1, status: 'active', updated_at: '2026-10-24T07:49:22.412Z' };
+const couponBody = (required) => adminJsonBody({ type: 'object', required, properties: {
+  code: { type: 'string', example: 'WEEKEND25', description: '3–20 letters/digits, saved in CAPS; locked once used in a booking' },
+  title: { type: 'string', example: '25% off this weekend' }, description: { type: 'string', example: 'Up to ₹75 off on city rides' },
+  discount_type: { type: 'string', enum: ['flat', 'percent'] }, discount_value: { type: 'number', example: 25, description: '₹ for flat; 1–100 for percent' },
+  max_discount_amount: { type: 'number', nullable: true, example: 75, description: 'Percent only; null = no cap' }, min_trip_amount: { type: 'number', example: 120 },
+  uses_per_user: { type: 'integer', example: 2 }, total_uses_limit: { type: 'integer', example: 500, description: '0 = no limit' },
+  module_keys: { type: 'array', items: { type: 'string' }, example: ['one_way'], description: '[] = all modules' }, zone_ids: { type: 'array', items: { type: 'integer' }, example: [1], description: '[] = all zones' },
+  starts_at: { type: 'string', example: '2026-10-25 00:00', description: 'IST; empty = now' }, ends_at: { type: 'string', example: '2026-10-26 23:59', description: 'IST; empty = no end' },
+  status: { type: 'string', enum: ['active', 'inactive'] }
+} });
+const slideForm = (required) => ({ required: true, content: { 'multipart/form-data': { schema: { type: 'object', required, properties: {
+  title: { type: 'string', example: 'Book in seconds' }, description: { type: 'string' }, title_hi: { type: 'string', description: 'Optional Hindi' }, description_hi: { type: 'string', description: 'Optional Hindi' },
+  status: { type: 'string', enum: ['active', 'inactive'] }, image: { type: 'string', format: 'binary', description: 'JPEG, PNG or WebP; max 2 MB; square 1080×1080' }
+} } } } });
+
+openApiSpec.tags.push(
+  { name: 'Admin coupons', description: 'Promo codes. View: all roles; changes: super_admin, operations' },
+  { name: 'Admin onboarding', description: 'First-launch slides (HOME-09). View: all roles; changes: super_admin, operations' }
+);
+
+Object.assign(openApiSpec.paths, {
+  '/common/on-boarding': { get: {
+    tags: ['Common'], summary: 'HOME-09 — onboarding slides, public; empty list = show built-in slides',
+    parameters: [{ name: 'locale', in: 'query', schema: { type: 'string', enum: ['en', 'hi'], default: 'en' }, description: 'hi uses Hindi text where the admin wrote it' }],
+    responses: { 200: userOk('OK', [slidePublicExample]), 422: { description: 'validation_error (locale)' } }
+  } },
+  '/request/promocode-list': { get: {
+    tags: ['Ride request'], summary: 'HOME-10 — live coupons this user can still use, newest first', security: bearer,
+    parameters: [
+      { name: 'module_key', in: 'query', schema: { type: 'string', example: 'one_way' } },
+      { name: 'zone_id', in: 'query', schema: { type: 'integer', example: 1 } },
+      { name: 'promo_code', in: 'query', schema: { type: 'string', example: 'SAVE50' }, description: 'Marks this code is_applied: true' }
+    ],
+    responses: { 200: userOk('OK', [couponPublicExample]), 401: { description: 'unauthorized' }, 422: { description: 'validation_error (zone_id)' } }
+  } },
+  '/admin/coupons': {
+    get: { tags: ['Admin coupons'], summary: 'Coupons with stats and the module/zone options for the form', security: adminBearer, responses: { 200: adminSuccess('OK', { stats: { total: 5, live: 4, scheduled: 0, expired: 1, inactive: 0, total_uses: 1 }, coupons: [adminCouponExample], options: { modules: [{ key: 'one_way', name: 'One Way' }], zones: [{ id: 1, name: 'Indore City' }] } }) } },
+    post: { tags: ['Admin coupons'], summary: 'Create a coupon', security: adminBearer, requestBody: couponBody(['code', 'title', 'discount_type', 'discount_value']), responses: { 201: adminSuccess('coupon_created', { coupon: adminCouponExample }), 403: { description: 'admin_forbidden' }, 409: { description: 'coupon_code_exists' }, 422: { description: 'validation_error' } } }
+  },
+  '/admin/coupons/{id}/update': { post: { tags: ['Admin coupons'], summary: 'Edit a coupon; send only the changed fields', security: adminBearer, parameters: idParam(19), requestBody: couponBody([]), responses: { 200: adminSuccess('coupon_updated', { coupon: adminCouponExample }), 404: { description: 'coupon_not_found' }, 409: { description: 'coupon_code_exists' }, 422: { description: 'validation_error | coupon_code_locked (used code renamed)' } } } },
+  '/admin/coupons/{id}/status': { post: { tags: ['Admin coupons'], summary: 'Active or inactive', security: adminBearer, parameters: idParam(19), requestBody: adminJsonBody({ type: 'object', required: ['status'], properties: { status: { type: 'string', enum: ['active', 'inactive'] } } }), responses: { 200: adminSuccess('coupon_status_updated', { coupon: { ...adminCouponExample, status: 'inactive', state: 'inactive' } }) } } },
+  '/admin/coupons/{id}/delete': { post: { tags: ['Admin coupons'], summary: 'Delete a coupon that was never used', security: adminBearer, parameters: idParam(19), responses: { 200: adminSuccess('coupon_deleted', { id: 19 }), 404: { description: 'coupon_not_found' }, 409: { description: 'coupon_in_use (switch it off instead)' } } } },
+  '/admin/onboarding': {
+    get: { tags: ['Admin onboarding'], summary: 'All slides with stats', security: adminBearer, responses: { 200: adminSuccess('OK', { stats: { total: 1, active: 1, inactive: 0 }, slides: [adminSlideExample] }) } },
+    post: { tags: ['Admin onboarding'], summary: 'Add a slide (image required); added at the end', security: adminBearer, requestBody: slideForm(['title', 'image']), responses: { 201: adminSuccess('onboarding_slide_created', { slide: adminSlideExample }), 422: { description: 'validation_error / image_* upload errors' } } }
+  },
+  '/admin/onboarding/{id}/update': { post: { tags: ['Admin onboarding'], summary: 'Edit a slide; image optional (old file removed when replaced)', security: adminBearer, parameters: idParam(5), requestBody: slideForm([]), responses: { 200: adminSuccess('onboarding_slide_updated', { slide: adminSlideExample }), 404: { description: 'onboarding_slide_not_found' } } } },
+  '/admin/onboarding/{id}/status': { post: { tags: ['Admin onboarding'], summary: 'Active or inactive', security: adminBearer, parameters: idParam(5), requestBody: adminJsonBody({ type: 'object', required: ['status'], properties: { status: { type: 'string', enum: ['active', 'inactive'] } } }), responses: { 200: adminSuccess('onboarding_slide_status_updated', { slide: adminSlideExample }) } } },
+  '/admin/onboarding/reorder': { post: { tags: ['Admin onboarding'], summary: 'Save slide order; ids must list every slide once', security: adminBearer, requestBody: adminJsonBody({ type: 'object', required: ['ids'], properties: { ids: { type: 'array', items: { type: 'integer' } } } }), responses: { 200: adminSuccess('onboarding_reordered', { slides: [adminSlideExample] }) } } },
+  '/admin/onboarding/{id}/delete': { post: { tags: ['Admin onboarding'], summary: 'Delete a slide and its image', security: adminBearer, parameters: idParam(5), responses: { 200: adminSuccess('onboarding_slide_deleted', { id: 5 }), 404: { description: 'onboarding_slide_not_found' } } } }
+});

@@ -4,6 +4,7 @@ import { Banner, Service } from '../../database/models/index.js';
 import { AppError } from '../../shared/utils/app-error.js';
 import { removeStoredUpload } from '../../shared/utils/image-upload.js';
 import { publicProfilePictureUrl as publicUploadUrl } from '../../shared/utils/serializers.js';
+import { changedFields, diffChanges, recordAudit } from '../audit/audit.service.js';
 
 // live = shown in the app right now; scheduled / expired = active but outside its dates.
 const bannerState = (banner, now = new Date()) => {
@@ -62,6 +63,9 @@ export const listLiveBanners = async ({ limit, moduleKey }) => {
   return banners.map(publicBannerPayload);
 };
 
+const bannerTarget = (banner) => ({ type: 'banner', id: banner.id, label: banner.title });
+const BANNER_AUDIT_FIELDS = ['title', 'subtitle', 'module_key', 'link_type', 'link_value', 'status', 'starts_at', 'ends_at'];
+
 const findBanner = async (id, options = {}) => {
   const banner = await Banner.findByPk(id, options);
   if (!banner) throw new AppError('banner_not_found', 404);
@@ -103,12 +107,14 @@ export const createBanner = async ({ body, image }) => {
   await assertModuleKeys(body);
   const lastOrder = (await Banner.max('sortOrder')) || 0;
   const banner = await Banner.create({ ...bannerValues(body), image, sortOrder: lastOrder + 1 });
+  recordAudit({ action: 'banner.created', target: bannerTarget(banner), description: `Created banner "${banner.title}"` });
   return adminBannerPayload(banner);
 };
 
 export const updateBanner = async ({ id, body, image }) => {
   const banner = await findBanner(id);
   await assertModuleKeys(body);
+  const before = adminBannerPayload(banner);
   const values = bannerValues(body);
   // Dates are checked together with the stored value when only one of them changes.
   const startsAt = values.startsAt !== undefined ? values.startsAt : banner.startsAt;
@@ -118,12 +124,19 @@ export const updateBanner = async ({ id, body, image }) => {
   if (image) values.image = image;
   if (Object.keys(values).length) await banner.update(values);
   if (image && previousImage !== image) await removeStoredUpload(previousImage);
-  return adminBannerPayload(banner);
+  const payload = adminBannerPayload(banner);
+  const changes = { ...diffChanges(before, payload, BANNER_AUDIT_FIELDS), ...(image ? { image: { from: 'old image', to: 'new image' } } : {}) };
+  if (Object.keys(changes).length) recordAudit({ action: 'banner.updated', target: bannerTarget(banner), changes, description: `Edited banner "${banner.title}": ${changedFields(changes)}` });
+  return payload;
 };
 
 export const updateBannerStatus = async ({ id, status }) => {
   const banner = await findBanner(id);
+  const previous = banner.status;
   await banner.update({ status });
+  if (previous !== status) {
+    recordAudit({ action: 'banner.status_changed', target: bannerTarget(banner), changes: { status: { from: previous, to: status } }, description: `Banner "${banner.title}" set to ${status}` });
+  }
   return adminBannerPayload(banner);
 };
 
@@ -134,10 +147,12 @@ export const reorderBanners = (ids) =>
       throw new AppError('validation_error', 422, { errors: { ids: 'ids must contain every banner exactly once' } });
     }
     const byId = new Map(banners.map((banner) => [Number(banner.id), banner]));
+    let moved = 0;
     for (const [index, id] of ids.entries()) {
       const banner = byId.get(id);
-      if (banner.sortOrder !== index + 1) await banner.update({ sortOrder: index + 1 }, { transaction });
+      if (banner.sortOrder !== index + 1) { await banner.update({ sortOrder: index + 1 }, { transaction }); moved += 1; }
     }
+    if (moved) recordAudit({ action: 'banners.reordered', description: `New order: ${ids.map((id) => byId.get(id).title).join(', ')}` }, { transaction });
     return ids.map((id) => adminBannerPayload(byId.get(id)));
   });
 
@@ -146,4 +161,5 @@ export const deleteBanner = async (id) => {
   const banner = await findBanner(id);
   await banner.destroy();
   await removeStoredUpload(banner.image);
+  recordAudit({ action: 'banner.deleted', target: bannerTarget(banner), description: `Deleted banner "${banner.title}"` });
 };

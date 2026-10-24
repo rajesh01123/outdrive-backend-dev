@@ -4,6 +4,7 @@ import { AppError } from '../../shared/utils/app-error.js';
 import { userPayload } from '../../shared/utils/serializers.js';
 import { verifyOtp } from '../auth/otp.service.js';
 import { listFavourites } from './favourite.service.js';
+import { changedFields, diffChanges, recordAudit } from '../audit/audit.service.js';
 
 const profileFields = (body) => {
   const values = {};
@@ -26,8 +27,12 @@ export const updateProfile = async ({ userId, body, profilePicture }) => {
 
   const values = profileFields(body);
   if (profilePicture) values.profilePicture = profilePicture;
+  const before = userPayload(user, { detailed: true });
   if (Object.keys(values).length) await user.update(values);
-  return userPayload(user, { detailed: true });
+  const payload = userPayload(user, { detailed: true });
+  const changes = { ...diffChanges(before, payload, ['name', 'gender', 'map_type']), ...(profilePicture ? { photo: { from: before.profile_picture ? 'old photo' : null, to: 'new photo' } } : {}) };
+  if (Object.keys(changes).length) recordAudit({ action: 'app.profile_updated', target: { type: 'user', id: user.id, label: user.name }, changes, description: `Updated profile: ${changedFields(changes)}` });
+  return payload;
 };
 
 export const getUser = async (userId) => {
@@ -52,4 +57,5 @@ export const deleteAccount = ({ userId, otp, reason }) =>
     await Device.update({ userId: null }, { where: { userId: user.id }, transaction });
     await user.update({ status: 'deleted', deleteReason: reason?.trim() || null }, { transaction });
     await user.destroy({ transaction });
+    recordAudit({ action: 'app.account_deleted', target: { type: 'user', id: user.id, label: user.name }, description: `Deleted own account${reason?.trim() ? `. Reason: ${reason.trim()}` : ''}` }, { transaction });
   });

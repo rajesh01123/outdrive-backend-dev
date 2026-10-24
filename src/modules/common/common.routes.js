@@ -8,6 +8,8 @@ import { asyncHandler } from '../../shared/utils/async-handler.js';
 import { publicProfilePictureUrl as publicUploadUrl } from '../../shared/utils/serializers.js';
 import { listLiveBanners } from '../admin-banners/admin-banners.service.js';
 import { publicBannersRequest } from '../admin-banners/admin-banners.validation.js';
+import { listLiveSlides } from '../admin-onboarding/admin-onboarding.service.js';
+import { publicOnboardingRequest } from '../admin-onboarding/admin-onboarding.validation.js';
 import { checkServiceability, ZONE_CURRENCY } from '../zone/zone.service.js';
 import { listActiveContacts, listPublicPages, listPublishedFaqs, findPublishedPage, pageUrl, publicContactPayload, publicFaqPayload, RESERVED_SLUGS } from '../cms/cms.service.js';
 import { cancelPolicyRequest, cmsAudienceRequest, serviceAvailabilityRequest } from './common.validation.js';
@@ -72,6 +74,11 @@ router.get('/banners', optionalAuthenticate, validate(publicBannersRequest), asy
   const data = await listLiveBanners({ limit: req.query.limit, moduleKey: req.query.module_key });
   return success(res, { message: 'OK', data });
 }));
+
+// HOME-09 — public; active slides in admin order. An empty list means the app shows its built-in slides.
+router.get('/on-boarding', validate(publicOnboardingRequest), asyncHandler(async (req, res) =>
+  success(res, { message: 'OK', data: await listLiveSlides({ locale: req.query.locale }) })
+));
 
 // CMS — the app's menu of WebView pages (no hard-coded URLs), plus FAQ / support data as JSON.
 router.get('/pages', validate(cmsAudienceRequest), asyncHandler(async (req, res) =>

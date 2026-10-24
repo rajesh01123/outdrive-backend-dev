@@ -6,6 +6,7 @@ import { haversineKm } from '../../shared/geo/geo.js';
 import { AppError } from '../../shared/utils/app-error.js';
 import { publicProfilePictureUrl as publicUploadUrl } from '../../shared/utils/serializers.js';
 import { checkServiceability } from '../zone/zone.service.js';
+import { couponDiscount, couponPublicId, findUsableCoupon, minimumFareError } from '../coupon/coupon.service.js';
 
 export const SCHEDULE_MIN_LEAD_MINUTES = 30;
 export const SCHEDULE_MAX_DAYS = 7;
@@ -37,8 +38,6 @@ export const resolveTrip = async (body) => {
     if (minutesAhead > SCHEDULE_MAX_DAYS * 24 * 60) throw fieldError('schedule_datetime', `schedule a ride within ${SCHEDULE_MAX_DAYS} days`);
     scheduledAt = body.schedule_at;
   }
-  if (body.promo_code) throw new AppError('invalid_promo_code', 422, { errors: { promo_code: 'promo codes are not available yet' } });
-
   const area = await checkServiceability({ lat: body.pick_lat, lng: body.pick_lng, moduleKey: service.moduleKey });
   if (!area.isServiceable) throw new AppError('out_of_service_area', 422, { is_serviceable: false });
 
@@ -59,8 +58,11 @@ export const resolveTrip = async (body) => {
   return { service, zone: area.zone, fareCategory, roundTrip, seats, scheduledAt, distanceMeters, minutes: body.duration, offers };
 };
 
-const etaItem = ({ vehicle, fare }, trip, walletBalance) => {
+const etaItem = ({ vehicle, fare }, trip, walletBalance, coupon) => {
   const breakdown = calculateFare(fare, { distanceMeters: trip.distanceMeters, minutes: trip.minutes, seats: trip.seats, roundTrip: trip.roundTrip });
+  // The promo comes off the payable fare (tax included); the app never calculates it.
+  const promo = coupon ? couponDiscount(coupon, breakdown.total) : { amount: 0, message: '' };
+  const total = breakdown.total - promo.amount;
   return {
     zone_type_id: `zt_${fare.id}`,
     type_id: `vt_${vehicle.id}`,
@@ -72,8 +74,9 @@ const etaItem = ({ vehicle, fare }, trip, walletBalance) => {
     distance: String(breakdown.distance_km),
     distance_in_meters: String(Math.round(breakdown.distance_km * 1000)),
     time: breakdown.minutes,
-    total: breakdown.total,
-    min_amount: breakdown.total,
+    subtotal: breakdown.total,
+    total,
+    min_amount: total,
     currency: 'INR',
     unit_in_words: 'KM',
     is_default: Boolean(fare.isDefault),
@@ -81,8 +84,12 @@ const etaItem = ({ vehicle, fare }, trip, walletBalance) => {
     enable_bidding: false,
     enable_shared_ride: trip.fareCategory === 'shared',
     seats_taken: breakdown.seats,
-    has_discount: false,
-    discount_total: 0,
+    has_discount: promo.amount > 0,
+    discount_total: promo.amount,
+    promo_discount: promo.amount,
+    promo_code: promo.amount ? coupon.code : '',
+    promo_applied: promo.amount > 0,
+    promo_message: promo.message,
     base_price: breakdown.base_price,
     price_per_distance: breakdown.price_per_km,
     price_per_time: breakdown.price_per_min,
@@ -94,7 +101,7 @@ const etaItem = ({ vehicle, fare }, trip, walletBalance) => {
     min_fare_applied: breakdown.min_fare_applied,
     free_waiting_time_in_mins_before_trip_start: fare.freeWaitingMins,
     waiting_charge: Number(fare.waitingChargePerMin),
-    promocode_id: '',
+    promocode_id: promo.amount ? couponPublicId(coupon) : '',
     user_wallet_balance: walletBalance,
     preference: []
   };
@@ -103,8 +110,13 @@ const etaItem = ({ vehicle, fare }, trip, walletBalance) => {
 // ETA-01
 export const estimate = async ({ body, user }) => {
   const trip = await resolveTrip(body);
+  const coupon = body.promo_code
+    ? await findUsableCoupon({ code: body.promo_code, userId: user.id, moduleKey: trip.service.moduleKey, zoneId: trip.zone.id })
+    : null;
   const walletBalance = Number(user.walletBalance || 0);
-  const data = trip.offers.map((offer) => etaItem(offer, trip, walletBalance));
+  const data = trip.offers.map((offer) => etaItem(offer, trip, walletBalance, coupon));
+  // A code is refused only when no vehicle reaches its minimum fare; otherwise each vehicle shows its own result.
+  if (coupon && data.length && !data.some((item) => item.promo_applied)) throw minimumFareError(coupon);
   // Exactly one vehicle is pre-selected: the first configured default, or the first vehicle when the
   // default is filtered out (e.g. by seats). Older data can hold two defaults in one zone + category.
   const defaultIndex = Math.max(0, data.findIndex((item) => item.is_default));

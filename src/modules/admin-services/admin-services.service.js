@@ -4,6 +4,7 @@ import { fareCategoryForService } from '../../shared/fare/fare-calculator.js';
 import { AppError } from '../../shared/utils/app-error.js';
 import { removeStoredUpload } from '../../shared/utils/image-upload.js';
 import { publicProfilePictureUrl as publicUploadUrl } from '../../shared/utils/serializers.js';
+import { changedFields, diffChanges, recordAudit } from '../audit/audit.service.js';
 
 export const servicePayload = (service) => ({
   id: Number(service.id),
@@ -22,6 +23,9 @@ export const servicePayload = (service) => ({
   sort_order: service.sortOrder,
   status: service.status
 });
+
+const serviceTarget = (service) => ({ type: 'service', id: service.id, label: service.name });
+const SERVICE_AUDIT_FIELDS = ['name', 'short_description', 'description', 'cancel_policy_title', 'cancel_policy_body', 'status'];
 
 const findService = async (id, options = {}) => {
   const service = await Service.findByPk(id, options);
@@ -45,6 +49,7 @@ export const updateService = async ({ id, body, image }) => {
   const locked = lockedFields.find((field) => body[field] !== undefined);
   if (locked) throw new AppError('service_field_locked', 422, { errors: { [locked]: `${locked} is part of the app contract and cannot be changed` } });
 
+  const before = servicePayload(service);
   const values = {};
   if (body.name !== undefined) values.name = body.name;
   if (body.short_description !== undefined) values.shortDescription = body.short_description || null;
@@ -56,12 +61,19 @@ export const updateService = async ({ id, body, image }) => {
   if (image) values.image = image;
   if (Object.keys(values).length) await service.update(values);
   if (image && previousImage !== image) await removeStoredUpload(previousImage);
-  return servicePayload(service);
+  const payload = servicePayload(service);
+  const changes = { ...diffChanges(before, payload, SERVICE_AUDIT_FIELDS), ...(image ? { image: { from: previousImage ? 'old image' : null, to: 'new image' } } : {}) };
+  if (Object.keys(changes).length) recordAudit({ action: 'service.updated', target: serviceTarget(service), changes, description: `Edited ${service.name}: ${changedFields(changes)}` });
+  return payload;
 };
 
 export const updateServiceStatus = async ({ id, status }) => {
   const service = await findService(id);
+  const previous = service.status;
   await service.update({ status });
+  if (previous !== status) {
+    recordAudit({ action: 'service.status_changed', target: serviceTarget(service), changes: { status: { from: previous, to: status } }, description: `${service.name} set to ${status}` });
+  }
   return servicePayload(service);
 };
 
@@ -73,9 +85,11 @@ export const reorderServices = (ids) =>
       throw new AppError('validation_error', 422, { errors: { ids: 'ids must contain every service exactly once' } });
     }
     const byId = new Map(services.map((service) => [Number(service.id), service]));
+    let moved = 0;
     for (const [index, id] of ids.entries()) {
       const service = byId.get(id);
-      if (service.sortOrder !== index + 1) await service.update({ sortOrder: index + 1 }, { transaction });
+      if (service.sortOrder !== index + 1) { await service.update({ sortOrder: index + 1 }, { transaction }); moved += 1; }
     }
+    if (moved) recordAudit({ action: 'services.reordered', description: `New order: ${ids.map((id) => byId.get(id).name).join(', ')}` }, { transaction });
     return ids.map((id) => servicePayload(byId.get(id)));
   });
