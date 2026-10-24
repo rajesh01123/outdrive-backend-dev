@@ -108,6 +108,14 @@ export const getBooking = async (id) => {
     shared_ride: Boolean(booking.sharedRide),
     seats_taken: booking.seatsTaken,
     promo_code: booking.promoCode || '',
+    subtotal_amount: booking.subtotalAmount === null ? null : Number(booking.subtotalAmount),
+    promo_discount: Number(booking.promoDiscount || 0),
+    request_eta_amount: booking.requestEtaAmount === null ? null : Number(booking.requestEtaAmount),
+    return_at: booking.returnAt,
+    pickup_instruction: booking.pickupInstruction || '',
+    book_for_other: Boolean(booking.bookForOther),
+    other_contact_name: booking.otherContactName || '',
+    other_contact_mobile: booking.otherContactMobile || '',
     fare_breakdown: booking.fareBreakdown,
     parcel: booking.parcel
       ? {
@@ -116,7 +124,11 @@ export const getBooking = async (id) => {
         receiver_name: booking.parcel.receiverName,
         receiver_mobile: booking.parcel.receiverMobile,
         goods_description: booking.parcel.goodsDescription,
-        paid_at: booking.parcel.paidAt
+        paid_at: booking.parcel.paidAt,
+        parcel_type: booking.parcel.parcelType,
+        goods_type_id: booking.parcel.goodsTypeId ? Number(booking.parcel.goodsTypeId) : null,
+        goods_quantity: booking.parcel.goodsQuantity || '',
+        receiver_instruction: booking.parcel.receiverInstruction || ''
       }
       : null,
     driver: null,

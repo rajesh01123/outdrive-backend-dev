@@ -10,8 +10,8 @@ Every example is a **real response** captured from the API. Only the host was ch
 | | |
 |---|---|
 | Auth | `Authorization: Bearer <admin access_token>` |
-| View (`GET`) | `super_admin`, `operations`, `support` |
-| Changes (`POST`) | `super_admin`, `operations`. `support` gets `403 admin_forbidden` |
+| View (`GET`) | Coupons: `coupons.view`; onboarding slides: `content.view` (Super Admin, Operations and Support by default) |
+| Changes (`POST`) | Coupons: `coupons.manage`; onboarding slides: `content.manage` (Super Admin and Operations by default). Others get `403 admin_forbidden` |
 | Audit log | Every create, edit, status change, reorder and delete is recorded (see Audit logs) |
 
 ## Tables

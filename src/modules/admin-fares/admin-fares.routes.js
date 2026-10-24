@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authenticateAdmin } from '../../middleware/authenticate-admin.js';
-import { authorizeAdmin } from '../../middleware/authorize-admin.js';
+import { requirePermission } from '../../middleware/authorize-admin.js';
 import { validate } from '../../middleware/validate.js';
 import * as controller from './admin-fares.controller.js';
 import {
@@ -13,9 +13,9 @@ import {
 } from './admin-fares.validation.js';
 
 const router = Router();
-const canView = authorizeAdmin('super_admin', 'operations', 'support');
-// Fare changes hit every customer's price, so only a super admin may make them.
-const canEditFares = authorizeAdmin('super_admin');
+const canView = requirePermission('fares.view');
+// Fare changes hit every customer's price, so they need fares.manage (the Operations role only views them).
+const canEditFares = requirePermission('fares.manage');
 
 router.use(authenticateAdmin);
 router.get('/', canView, validate(listFaresRequest), controller.list);

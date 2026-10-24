@@ -1,7 +1,9 @@
 import { Op } from 'sequelize';
 import { Admin, AdminOtpVerification, AdminSession } from '../../database/models/index.js';
+import { ROLE_INCLUDE } from './admin-access.js';
 
-export const findAdminByEmail = (email, options = {}) => Admin.findOne({ where: { email }, ...options });
+export const findAdminByEmail = (email, options = {}) => Admin.findOne({ where: { email }, include: [ROLE_INCLUDE], ...options });
+export const findAdminWithRole = (id, options = {}) => Admin.findByPk(id, { include: [ROLE_INCLUDE], ...options });
 
 export const findActiveOtherSession = ({ adminId, deviceId, transaction }) =>
   AdminSession.findOne({

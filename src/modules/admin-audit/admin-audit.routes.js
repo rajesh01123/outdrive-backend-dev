@@ -1,6 +1,6 @@
 import express from 'express';
 import { authenticateAdmin } from '../../middleware/authenticate-admin.js';
-import { authorizeAdmin } from '../../middleware/authorize-admin.js';
+import { requirePermission } from '../../middleware/authorize-admin.js';
 import { validate } from '../../middleware/validate.js';
 import { success } from '../../shared/responses/api-response.js';
 import { asyncHandler } from '../../shared/utils/async-handler.js';
@@ -9,8 +9,8 @@ import { auditLogIdRequest, listAuditLogsRequest } from './admin-audit.validatio
 
 const router = express.Router();
 
-// Read-only, and only super admins can see who did what. There is no API to edit or delete a log.
-router.use(authenticateAdmin, authorizeAdmin('super_admin'));
+// Read-only, for roles with audit.view (Super Admin by default). There is no API to edit or delete a log.
+router.use(authenticateAdmin, requirePermission('audit.view'));
 
 router.get('/', validate(listAuditLogsRequest), asyncHandler(async (req, res) => {
   const { page, limit, search, action, module, actor_type: actorType, status, date } = req.query;

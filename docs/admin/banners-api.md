@@ -7,11 +7,12 @@ A banner is only an **image** for the **user app** or the **driver app**, shown 
 
 Examples are real responses; only the host was changed to the live domain.
 
-| Role | View | Add / edit / order / delete |
+| Permission | View | Add / edit / order / delete |
 |---|---|---|
-| super_admin | yes | yes |
-| operations | yes | yes |
-| support | yes | no (`403 admin_forbidden`) |
+| `banners.view` | yes | no (`403 admin_forbidden`) |
+| `banners.manage` | yes | yes |
+
+By default Super Admin and Operations have `banners.manage`, Support has `banners.view` (see [Staff & roles](staff-roles-api.md)).
 
 Table `tbl_banners`: `id`, `image`, `type` (`user` / `driver`), `sort_order`, timestamps. Migration **030** removed the old title, subtitle, module, link, status and date columns.
 
@@ -100,7 +101,7 @@ The response is `banners_reordered` with `data.banners` in the new order (`sort_
 | Wrong file type / too big | 422 | `image_must_be_jpeg_png_or_webp` / `image_too_large` |
 | Reorder without every banner of the type | 422 | `{ "errors": { "ids": "ids must contain every user banner exactly once" } }` |
 | Unknown id | 404 | `banner_not_found` |
-| `support` role changing anything | 403 | `admin_forbidden` |
+| Role without `banners.manage` changing anything | 403 | `admin_forbidden` |
 
 ## Seed data
 

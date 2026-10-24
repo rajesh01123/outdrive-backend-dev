@@ -86,10 +86,14 @@ Success — `200 OK`:
 }
 ```
 
+The response now also has `favouriteLocations` ([home-api.md](home-api.md)) and the ride fields `has_ongoing_ride`, `has_upcoming_ride` and `onTripRequest`. With `?current_ride=req_1001` it also returns `current_ride` ([booking-api.md](booking-api.md)).
+
 | Status | Message | When |
 | --- | --- | --- |
 | 401 | `unauthorized`, `invalid_or_expired_token`, `session_revoked` | Bearer token is invalid |
 | 403 | `user_blocked` | Account is blocked |
+| 404 | `booking_not_found` | `current_ride` is not one of this user's bookings |
+| 422 | `validation_error` | `current_ride` is longer than 30 characters |
 
 ## AUTH-09 — Delete account
 

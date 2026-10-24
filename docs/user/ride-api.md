@@ -26,7 +26,7 @@ ZONE-01  POST /common/service-availability  is the pickup serviceable for this m
    ▼  yes → user picks the drop
 ETA-01   POST /request/eta                  vehicles + backend-calculated fares
    ▼  user picks one vehicle (keep zone_type_id, type_id, total + the ETA request fields)
-BOOK-01  POST /request/create               next phase
+BOOK-01  POST /request/create               create the booking — see booking-api.md
 
 ETA-02   GET  /common/cancel-policy         show before booking
 ```

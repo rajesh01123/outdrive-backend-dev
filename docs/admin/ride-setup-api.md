@@ -22,14 +22,16 @@ What the app needs before it can price a ride, and what it gets when something i
 | 3. Vehicles mapped to the module | Vehicles → Module mapping | `no_vehicles_available` |
 | 4. A fare for each vehicle in that zone | Fare settings | that vehicle is not offered |
 
-## Roles
+## Permissions
 
-| Area | super_admin | operations | support |
-|---|---|---|---|
-| Modules, zones, vehicles | edit | edit | view |
-| **Fares** | **edit** | view | view |
-| Fare calculator, test location | yes | yes | yes |
-| Bookings | view + cancel | view + cancel | view |
+Access comes from the admin's role (see [Staff & roles](staff-roles-api.md)). The defaults:
+
+| Area | Permission | Super Admin | Operations | Support |
+|---|---|---|---|---|
+| Modules, zones, vehicles | `services.*`, `zones.*`, `vehicles.*` | manage | manage | view |
+| **Fares** | `fares.view` / `fares.manage` | **manage** | view | view |
+| Fare calculator, test location | the module's `view` | yes | yes | yes |
+| Bookings | `bookings.view` / `bookings.manage` (cancel) | manage | manage | view |
 
 Nothing in this area is ever deleted — bookings reference modules, zones, vehicles and fares. Use `inactive` instead.
 
@@ -139,9 +141,9 @@ Example (seeded Bike, city): base ₹25 incl. 6 km, ₹8/km, 18 min free, ₹1/m
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/admin/fares?zone_id=` | grouped by category; vehicles mapped to a module of that category appear even without a fare (`fare: null`) |
-| POST | `/admin/fares/save` | create or update (super_admin). All numeric fields required. Setting `is_default` clears the other default in that zone + category |
-| POST | `/admin/fares/:id/status` | on/off (super_admin) |
-| POST | `/admin/fares/copy` | `{ from_zone_id, to_zone_id, overwrite }` (super_admin) |
+| POST | `/admin/fares/save` | create or update (`fares.manage`). All numeric fields required. Setting `is_default` clears the other default in that zone + category |
+| POST | `/admin/fares/:id/status` | on/off (`fares.manage`) |
+| POST | `/admin/fares/copy` | `{ from_zone_id, to_zone_id, overwrite }` (`fares.manage`) |
 | POST | `/admin/fares/preview` | `{ zone_id, fare_category, distance_km, minutes, seats, round_trip }` → breakdown per vehicle |
 | GET | `/admin/fares/history?zone_id=&page=` | who changed what (old → new), 20 per page |
 
@@ -161,6 +163,30 @@ Bookings are created by BOOK-01 (app). Each booking stores a **snapshot** (modul
 | GET | `/admin/bookings` | `page`, `status` (a status or `ongoing` / `cancelled`), `module_key`, `section` (`parcel` for the Parcels page), `search` (OD1001, name, mobile), `from`, `to` (YYYY-MM-DD). 10 per page |
 | GET | `/admin/bookings/:id` | detail: route, fare snapshot, parcel sender/receiver, cancellation |
 | POST | `/admin/bookings/:id/cancel` | `{ reason }` — only `searching` / `scheduled`; otherwise `422 booking_not_cancellable` |
+
+### Booking detail — BOOK-01 fields
+
+`GET /admin/bookings/:id` also returns what the rider sent in BOOK-01. Real values from a promo ride (OD1100) and a parcel (OD1106):
+
+| Field | Example | Meaning |
+|---|---|---|
+| `subtotal_amount` | `205` | Fare before the promo (`fare_breakdown.total`) |
+| `promo_discount` | `50` | Coupon discount |
+| `estimated_amount` | `155` | Amount to pay (`fare_breakdown.payable`) |
+| `request_eta_amount` | `155` | The amount the app showed; always equal to `estimated_amount`, otherwise the booking is refused with `fare_changed` |
+| `return_at` | `null` | Round trip return time (UTC ISO) |
+| `pickup_instruction` | `"Ring the bell, 2nd floor"` | Note for the driver at pickup |
+| `book_for_other`, `other_contact_name`, `other_contact_mobile` | `false`, `""`, `""` | Booked for someone else |
+| `parcel.parcel_type` | `"send"` | `send` / `receive` |
+| `parcel.goods_type_id`, `parcel.goods_description` | `1`, `"Documents"` | The goods type; the name is a copy saved at booking time |
+| `parcel.goods_quantity` | `"2 files"` | Free text from the rider |
+| `parcel.receiver_instruction` | `"Leave with the security guard"` | Note for the driver at drop |
+
+`fare_breakdown` now ends with `promo_discount` and `payable` (OD1100: `"total": 205, "promo_discount": 50, "payable": 155`).
+
+A booking still `searching` after 5 minutes (`BOOKING_SEARCH_TIMEOUT_MINUTES`) becomes `no_driver_found` with `cancelled_by: "system"` and the reason "No driver accepted within 5 minutes". It shows under the **cancelled** filter.
+
+The goods list on the parcel form is managed with the [goods types API](goods-types-api.md).
 
 ## Errors
 

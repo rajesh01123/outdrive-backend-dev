@@ -44,6 +44,8 @@ export const env = Object.freeze({
   },
   // Audit logs older than this are removed once a day; 0 keeps them forever.
   auditLogRetentionDays: integer('AUDIT_LOG_RETENTION_DAYS', 180),
+  // A booking no driver takes within this many minutes becomes no_driver_found; 0 turns the check off.
+  bookingSearchTimeoutMinutes: integer('BOOKING_SEARCH_TIMEOUT_MINUTES', 5),
   payments: {
     // Stays off until a payment gateway is integrated, so the app never offers "online".
     onlineEnabled: process.env.ONLINE_PAYMENT_ENABLED === 'true'

@@ -39,11 +39,13 @@ Module documentation is stored beside its audience, so new booking or driver API
 - [Rider recent searches · favourites · banners](docs/user/home-api.md)
 - [App content pages (WebView) · FAQs · Help & Support](docs/user/cms-api.md)
 - [Rider onboarding slides · promo list · apply promo in ETA](docs/user/onboarding-promo-api.md)
+- [Rider booking (BOOK-01) · ride state in GET /user · parcel goods types](docs/user/booking-api.md)
 - [Admin ride setup APIs](docs/admin/ride-setup-api.md)
 - [Admin banners API](docs/admin/banners-api.md)
 - [Admin content API (pages, FAQs, support contacts)](docs/admin/cms-api.md)
 - [Admin audit logs API](docs/admin/audit-logs-api.md)
 - [Admin coupons and onboarding slides API](docs/admin/coupons-onboarding-api.md)
+- [Admin parcel goods types API](docs/admin/goods-types-api.md)
 - [Driver API documentation](docs/driver/README.md) — no driver endpoint exists yet
 
 Admin APIs are also available in Swagger under the **Admin auth** tag. They provide profile updates, password reset/change, email-based 2FA, and a one-active-device login policy.

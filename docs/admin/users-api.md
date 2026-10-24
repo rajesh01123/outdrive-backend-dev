@@ -8,15 +8,16 @@ Authorization: Bearer <admin_access_token>
 
 Base URL: `{APP_URL}/api/v1/admin/users`
 
-## Roles
+## Permissions
 
-| Role | List / view / stats | Edit / status | Delete |
-|---|---|---|---|
-| super_admin | yes | yes | yes |
-| operations | yes | yes | no |
-| support | yes | no | no |
+Access comes from the admin's role (see [Staff & roles](staff-roles-api.md)).
 
-A role without access gets `403 admin_forbidden`.
+| Permission | List / view / stats | Edit / status / delete |
+|---|---|---|
+| `users.view` | yes | no |
+| `users.manage` | yes | yes |
+
+By default Super Admin and Operations have `users.manage`, Support has `users.view`. A role without access gets `403 admin_forbidden`.
 
 ## Status
 

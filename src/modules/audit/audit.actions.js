@@ -11,6 +11,7 @@ export const AUDIT_MODULES = {
   banners: 'Banners',
   content: 'Content',
   coupons: 'Coupons',
+  staff: 'Staff & roles',
   app: 'User app'
 };
 
@@ -49,6 +50,12 @@ export const AUDIT_ACTIONS = {
   'fare.status_changed': ['fares', 'Fare status changed'],
 
   'booking.cancelled': ['bookings', 'Booking cancelled'],
+  'booking.no_driver_found': ['bookings', 'No driver found'],
+  'goods_type.created': ['bookings', 'Goods type created'],
+  'goods_type.updated': ['bookings', 'Goods type updated'],
+  'goods_type.status_changed': ['bookings', 'Goods type status changed'],
+  'goods_types.reordered': ['bookings', 'Goods types reordered'],
+  'goods_type.deleted': ['bookings', 'Goods type deleted'],
 
   'banner.created': ['banners', 'Banner created'],
   'banner.updated': ['banners', 'Banner updated'],
@@ -82,7 +89,18 @@ export const AUDIT_ACTIONS = {
   'coupon.status_changed': ['coupons', 'Coupon status changed'],
   'coupon.deleted': ['coupons', 'Coupon deleted'],
 
+  'staff.created': ['staff', 'Staff added'],
+  'staff.updated': ['staff', 'Staff updated'],
+  'staff.status_changed': ['staff', 'Staff status changed'],
+  'staff.password_reset': ['staff', 'Staff password reset'],
+  'staff.deleted': ['staff', 'Staff deleted'],
+  'role.created': ['staff', 'Role created'],
+  'role.updated': ['staff', 'Role updated'],
+  'role.status_changed': ['staff', 'Role status changed'],
+  'role.deleted': ['staff', 'Role deleted'],
+
   'app.user_registered': ['app', 'User signed up'],
+  'app.booking_created': ['app', 'User booked a ride'],
   'app.user_login': ['app', 'User login'],
   'app.user_login_failed': ['app', 'User login failed'],
   'app.user_logout': ['app', 'User logout'],

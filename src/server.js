@@ -7,6 +7,7 @@ import { openApiSpec } from './config/swagger.js';
 import { errorHandler, notFoundHandler } from './middleware/error-handler.js';
 import routes from './routes.js';
 import { startAuditRetention } from './modules/audit/audit.service.js';
+import { startBookingTimeouts } from './modules/booking/booking.service.js';
 import cmsWebRoutes from './modules/cms/cms-web.routes.js';
 
 const app = express();
@@ -32,6 +33,7 @@ app.use(errorHandler);
 const start = async () => {
   await connectDatabase();
   startAuditRetention();
+  startBookingTimeouts();
   app.listen(env.port, () => console.info(`OutDrive API listening on port ${env.port}`));
 };
 

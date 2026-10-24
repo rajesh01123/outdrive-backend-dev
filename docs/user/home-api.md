@@ -617,6 +617,8 @@ Also accepted (older builds): `POST /user/delete-favourite-location` with body `
 
 `favouriteLocations.data` is `[]` when the user has none. `id` stays `"u_<number>"` as in the auth APIs.
 
+`GET /user` also returns the ride fields `has_ongoing_ride`, `has_upcoming_ride` and `onTripRequest`, plus `current_ride` with `?current_ride=req_…`. See [booking-api.md](booking-api.md#get-user--ride-state-on-the-home-screen).
+
 ---
 
 ## Banners — home screen

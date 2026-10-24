@@ -19,7 +19,7 @@ First launch      → HOME-09 GET /common/on-boarding   (empty list → show the
 Offers sheet      → HOME-10 GET /request/promocode-list
 User taps a code  → ETA-01 POST /request/eta with promo_code   → show the new total from the API
 Remove the code   → ETA-01 again with promo_code ""
-Book              → BOOK-01 sends the same promo_code (BOOK-01 is the next phase)
+Book              → BOOK-01 sends the same promo_code and promocode_id (booking-api.md)
 ```
 
 > **Do not calculate a discount in the app.** The server works out the discount for every vehicle and checks every rule: dates, module, zone, minimum fare and usage limits.
@@ -366,6 +366,6 @@ A use is counted only when a booking with the code is **not** cancelled. Cancell
 
 ---
 
-## BOOK-01 (next phase)
+## BOOK-01
 
-BOOK-01 will take the same `promo_code` (and `promocode_id`). The server checks the code again with the same rules and saves the discount on the booking. The app never sends an amount.
+BOOK-01 takes the same `promo_code` and `promocode_id`, and `request_eta_amount` = the vehicle's `total` from this ETA. The server checks the code again with the same rules and saves the discount on the booking. The app never sends a discount; the amount is only compared, and a different fare returns `409 fare_changed`. See [booking-api.md](booking-api.md).

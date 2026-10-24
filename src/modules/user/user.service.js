@@ -5,6 +5,7 @@ import { userPayload } from '../../shared/utils/serializers.js';
 import { verifyOtp } from '../auth/otp.service.js';
 import { listFavourites } from './favourite.service.js';
 import { changedFields, diffChanges, recordAudit } from '../audit/audit.service.js';
+import { userBooking, userRideState } from '../booking/booking.service.js';
 
 const profileFields = (body) => {
   const values = {};
@@ -35,10 +36,16 @@ export const updateProfile = async ({ userId, body, profilePicture }) => {
   return payload;
 };
 
-export const getUser = async (userId) => {
+// Profile, favourites, the ride in progress and — with ?current_ride=req_1001 — that booking.
+export const getUser = async (userId, { currentRide } = {}) => {
   const user = await User.findByPk(userId);
   if (!user) throw new AppError('user_not_found', 404);
-  return { ...userPayload(user, { detailed: true }), favouriteLocations: { data: await listFavourites(user.id) } };
+  const [favourites, rides, current] = await Promise.all([
+    listFavourites(user.id),
+    userRideState(user.id),
+    currentRide ? userBooking(user.id, currentRide) : null
+  ]);
+  return { ...userPayload(user, { detailed: true }), favouriteLocations: { data: favourites }, ...rides, ...(currentRide ? { current_ride: current } : {}) };
 };
 
 export const deleteAccount = ({ userId, otp, reason }) =>

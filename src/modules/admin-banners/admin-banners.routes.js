@@ -1,14 +1,14 @@
 import { Router } from 'express';
 import { authenticateAdmin } from '../../middleware/authenticate-admin.js';
-import { authorizeAdmin } from '../../middleware/authorize-admin.js';
+import { requirePermission } from '../../middleware/authorize-admin.js';
 import { validate } from '../../middleware/validate.js';
 import { createImageUpload, removeStoredUpload, storedUploadPath } from '../../shared/utils/image-upload.js';
 import * as controller from './admin-banners.controller.js';
 import { bannerIdRequest, createBannerRequest, reorderBannersRequest, updateBannerRequest } from './admin-banners.validation.js';
 
 const router = Router();
-const canView = authorizeAdmin('super_admin', 'operations', 'support');
-const canManage = authorizeAdmin('super_admin', 'operations');
+const canView = requirePermission('banners.view');
+const canManage = requirePermission('banners.manage');
 const imageUpload = createImageUpload({ folder: 'banners', field: 'image', maxSizeMb: 2 }).single('image');
 
 router.use(authenticateAdmin);

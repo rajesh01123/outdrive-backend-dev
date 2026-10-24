@@ -9,7 +9,7 @@ The examples below are **real responses** captured locally. Because they were ca
 | | |
 |---|---|
 | Auth | `Authorization: Bearer <admin access_token>` |
-| Who can read | `super_admin` only. `operations` and `support` get `403 admin_forbidden` |
+| Who can read | Roles with `audit.view` (only Super Admin by default). Others get `403 admin_forbidden` |
 | Write API | None. Logs cannot be edited or deleted through the API |
 | Retention | Logs older than `AUDIT_LOG_RETENTION_DAYS` (default **180**) are removed once a day; `0` keeps everything |
 
@@ -77,7 +77,7 @@ Newest first, 20 per page.
         "module": "content",
         "module_label": "Content",
         "status": "success",
-        "actor": { "type": "admin", "id": 84, "name": "Rajesh", "role": "super_admin" },
+        "actor": { "type": "admin", "id": 84, "name": "Rajesh", "role": "Super Admin" },
         "target": { "type": "faq", "id": "21", "label": "How do I change my pickup point?" },
         "description": "Edited FAQ \"How do I change my pickup point?\": answer, category",
         "changes": {
@@ -96,7 +96,7 @@ Newest first, 20 per page.
         "module": "content",
         "module_label": "Content",
         "status": "success",
-        "actor": { "type": "admin", "id": 84, "name": "Rajesh", "role": "super_admin" },
+        "actor": { "type": "admin", "id": 84, "name": "Rajesh", "role": "Super Admin" },
         "target": { "type": "faq", "id": "21", "label": "How do I change my pickup point?" },
         "description": "Added FAQ \"How do I change my pickup point?\" in Booking",
         "changes": null,
@@ -112,7 +112,7 @@ Newest first, 20 per page.
         "module": "auth",
         "module_label": "Admin login & security",
         "status": "failed",
-        "actor": { "type": "admin", "id": 84, "name": "Rajesh", "role": "super_admin" },
+        "actor": { "type": "admin", "id": 84, "name": "Rajesh", "role": "Super Admin" },
         "target": null,
         "description": "Wrong password",
         "changes": null,
@@ -139,7 +139,7 @@ Newest first, 20 per page.
 
 | Case | Status | Response |
 |---|---|---|
-| `operations` or `support` admin | 403 | `{ "success": false, "message": "admin_forbidden", "data": {} }` |
+| Admin whose role has no `audit.view` | 403 | `{ "success": false, "message": "admin_forbidden", "data": {} }` |
 | `action=nope` | 422 | `{ "message": "validation_error", "data": { "errors": { "action": "action is not a known audit action" } } }` |
 | `date=24-10-2026` | 422 | `{ "message": "validation_error", "data": { "errors": { "date": "date must be YYYY-MM-DD" } } }` |
 | No token | 401 | `admin_unauthorized` |

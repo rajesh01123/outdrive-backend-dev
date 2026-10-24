@@ -15,6 +15,9 @@ import adminCmsRoutes from './modules/admin-cms/admin-cms.routes.js';
 import adminAuditRoutes from './modules/admin-audit/admin-audit.routes.js';
 import adminOnboardingRoutes from './modules/admin-onboarding/admin-onboarding.routes.js';
 import adminCouponsRoutes from './modules/admin-coupons/admin-coupons.routes.js';
+import adminGoodsTypesRoutes from './modules/admin-goods-types/admin-goods-types.routes.js';
+import adminStaffRoutes from './modules/admin-staff/admin-staff.routes.js';
+import adminRolesRoutes from './modules/admin-roles/admin-roles.routes.js';
 
 const router = Router();
 
@@ -33,6 +36,9 @@ router.use('/admin/cms', adminCmsRoutes);
 router.use('/admin/audit-logs', adminAuditRoutes);
 router.use('/admin/onboarding', adminOnboardingRoutes);
 router.use('/admin/coupons', adminCouponsRoutes);
+router.use('/admin/goods-types', adminGoodsTypesRoutes);
+router.use('/admin/staff', adminStaffRoutes);
+router.use('/admin/roles', adminRolesRoutes);
 router.use('/admin', adminRoutes);
 
 export default router;

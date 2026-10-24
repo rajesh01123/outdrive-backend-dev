@@ -10,8 +10,8 @@ Every example is a **real response** captured from the API. Only the host was ch
 | | |
 |---|---|
 | Auth | `Authorization: Bearer <admin access_token>` |
-| View (`GET`) | All roles: `super_admin`, `operations`, `support` |
-| Changes (all `POST`) | `super_admin`, `operations`. `support` gets `403 admin_forbidden` |
+| View (`GET`) | `content.view` (Super Admin, Operations and Support by default) |
+| Changes (all `POST`) | `content.manage` (Super Admin and Operations by default). Others get `403 admin_forbidden` |
 | Body | JSON |
 | Errors | `{ "success": false, "message": "error_key", "data": { "errors": { "<field>": "..." } } }` |
 

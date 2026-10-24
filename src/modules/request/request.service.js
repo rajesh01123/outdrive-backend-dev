@@ -13,7 +13,7 @@ export const SCHEDULE_MAX_DAYS = 7;
 
 const fieldError = (field, message, status = 422) => new AppError('validation_error', status, { errors: { [field]: message } });
 
-const paymentOptions = (fare) => fare.paymentTypes.split(',').filter((type) => type && (type !== 'online' || env.payments.onlineEnabled));
+export const paymentOptions = (fare) => fare.paymentTypes.split(',').filter((type) => type && (type !== 'online' || env.payments.onlineEnabled));
 
 /**
  * Everything ETA and (later) booking need before pricing: the module, its zone, the trip distance

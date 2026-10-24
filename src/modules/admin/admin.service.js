@@ -1,9 +1,10 @@
 import bcrypt from 'bcryptjs';
 import { sequelize } from '../../config/database.js';
-import { Admin, AdminSession } from '../../database/models/index.js';
+import { AdminSession } from '../../database/models/index.js';
 import { AppError } from '../../shared/utils/app-error.js';
 import { adminActor, diffChanges, maskEmail, maskMobile, recordAudit } from '../audit/audit.service.js';
-import { findActiveOtherSession, findAdminByEmail, revokeAdminSessions } from './admin.repository.js';
+import { adminRoleName } from './admin-access.js';
+import { findActiveOtherSession, findAdminByEmail, findAdminWithRole, revokeAdminSessions } from './admin.repository.js';
 import {
   consumeAdminOtp,
   createAdminOtp,
@@ -18,13 +19,14 @@ const assertActiveAdmin = (admin) => {
   if (!admin) throw new AppError('invalid_credentials', 401);
   if (admin.status === 'blocked') throw new AppError('admin_blocked', 403);
   if (admin.status !== 'active') throw new AppError('admin_inactive', 403);
+  if (admin.adminRole?.status !== 'active') throw new AppError('admin_role_inactive', 403);
 };
 
 const loginNote = { password: '', two_factor: ' with a two-factor code', new_device: '; the other device was signed out' };
 
 const completeLogin = async ({ admin, device, requestMeta, forceOtherLogout = false, via = 'password' }) =>
   sequelize.transaction(async (transaction) => {
-    const currentAdmin = await Admin.findByPk(admin.id, { transaction, lock: transaction.LOCK.UPDATE });
+    const currentAdmin = await findAdminWithRole(admin.id, { transaction, lock: transaction.LOCK.UPDATE });
     assertActiveAdmin(currentAdmin);
     const otherSession = await findActiveOtherSession({ adminId: currentAdmin.id, deviceId: device.id, transaction });
     if (otherSession && !forceOtherLogout) {
@@ -61,6 +63,8 @@ export const loginAdmin = async ({ email, password, device_id: deviceId, device_
   }
   if (admin.status !== 'active') {
     recordAudit({ action: 'admin.login_failed', status: 'failed', actor: adminActor(admin), description: `Sign-in refused: the account is ${admin.status}` });
+  } else if (admin.adminRole?.status !== 'active') {
+    recordAudit({ action: 'admin.login_failed', status: 'failed', actor: adminActor(admin), description: `Sign-in refused: the ${adminRoleName(admin)} role is switched off` });
   }
   assertActiveAdmin(admin);
   const device = { id: deviceId, name: deviceName || 'Unknown browser' };
@@ -78,7 +82,7 @@ export const loginAdmin = async ({ email, password, device_id: deviceId, device_
 
 export const verifyLoginTwoFactor = async ({ challengeToken, otp, requestMeta }) => {
   const challenge = verifyAdminChallenge(challengeToken, 'admin_2fa_challenge');
-  const admin = await Admin.findByPk(challenge.sub);
+  const admin = await findAdminWithRole(challenge.sub);
   assertActiveAdmin(admin);
   if (!admin.twoFactorEnabled) throw new AppError('two_factor_not_enabled', 400);
   try {
@@ -94,7 +98,7 @@ export const verifyLoginTwoFactor = async ({ challengeToken, otp, requestMeta })
 
 export const confirmNewDeviceLogin = async ({ challengeToken, requestMeta }) => {
   const challenge = verifyAdminChallenge(challengeToken, 'admin_login_challenge');
-  const admin = await Admin.findByPk(challenge.sub);
+  const admin = await findAdminWithRole(challenge.sub);
   assertActiveAdmin(admin);
   return completeLogin({ admin, device: challenge.device, requestMeta, forceOtherLogout: true, via: 'new_device' });
 };
@@ -102,7 +106,7 @@ export const confirmNewDeviceLogin = async ({ challengeToken, requestMeta }) => 
 export const getAdminProfile = (admin) => publicAdminPayload(admin);
 
 export const updateAdminProfile = async ({ adminId, body, profilePicture }) => {
-  const admin = await Admin.findByPk(adminId);
+  const admin = await findAdminWithRole(adminId);
   assertActiveAdmin(admin);
   const values = {};
   if (body.name !== undefined) values.name = body.name;
@@ -138,7 +142,7 @@ export const resetForgottenPassword = async ({ email, otp, newPassword }) => {
   try {
     await sequelize.transaction(async (transaction) => {
       await consumeAdminOtp({ adminId: admin.id, purpose: 'forgot_password', otp, transaction });
-      await admin.update({ passwordHash: await bcrypt.hash(newPassword, 12), passwordChangedAt: new Date() }, { transaction });
+      await admin.update({ passwordHash: await bcrypt.hash(newPassword, 12), passwordChangedAt: new Date(), mustChangePassword: false }, { transaction });
       await revokeAdminSessions({ adminId: admin.id, transaction });
     });
   } catch (error) {
@@ -155,8 +159,10 @@ export const changeAdminPassword = async ({ admin, sessionId, currentPassword, n
     recordAudit({ action: 'admin.password_changed', status: 'failed', description: 'Password change refused: the current password was wrong' });
     throw new AppError('current_password_incorrect', 400);
   }
+  if (await bcrypt.compare(newPassword, admin.passwordHash)) throw new AppError('new_password_same_as_current', 400);
   await sequelize.transaction(async (transaction) => {
-    await admin.update({ passwordHash: await bcrypt.hash(newPassword, 12), passwordChangedAt: new Date() }, { transaction });
+    // Choosing their own password also clears the "change it at first sign-in" flag set by an admin.
+    await admin.update({ passwordHash: await bcrypt.hash(newPassword, 12), passwordChangedAt: new Date(), mustChangePassword: false }, { transaction });
     await revokeAdminSessions({ adminId: admin.id, transaction });
   });
   recordAudit({ action: 'admin.password_changed', description: 'Password changed; all devices signed out' });

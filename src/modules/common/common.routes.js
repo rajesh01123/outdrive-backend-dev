@@ -9,6 +9,7 @@ import { publicProfilePictureUrl as publicUploadUrl } from '../../shared/utils/s
 import { listLiveBanners } from '../admin-banners/admin-banners.service.js';
 import { publicBannersRequest } from '../admin-banners/admin-banners.validation.js';
 import { listLiveSlides } from '../admin-onboarding/admin-onboarding.service.js';
+import { listActiveGoodsTypes } from '../admin-goods-types/admin-goods-types.service.js';
 import { publicOnboardingRequest } from '../admin-onboarding/admin-onboarding.validation.js';
 import { checkServiceability, ZONE_CURRENCY } from '../zone/zone.service.js';
 import { listActiveContacts, listPublicPages, listPublishedFaqs, findPublishedPage, pageUrl, publicContactPayload, publicFaqPayload, RESERVED_SLUGS } from '../cms/cms.service.js';
@@ -74,6 +75,9 @@ router.get('/banners', optionalAuthenticate, validate(publicBannersRequest), asy
   const data = await listLiveBanners({ limit: req.query.limit, type: req.query.type });
   return success(res, { message: 'OK', data });
 }));
+
+// Parcel screen — public; the active goods types in admin order (goods_type_id in BOOK-01).
+router.get('/goods-types', asyncHandler(async (req, res) => success(res, { message: 'OK', data: await listActiveGoodsTypes() })));
 
 // HOME-09 — public; active slides in admin order. An empty list means the app shows its built-in slides.
 router.get('/on-boarding', validate(publicOnboardingRequest), asyncHandler(async (req, res) =>

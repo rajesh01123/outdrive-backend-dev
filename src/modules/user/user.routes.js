@@ -3,11 +3,11 @@ import { authenticate } from '../../middleware/authenticate.js';
 import { validate } from '../../middleware/validate.js';
 import { profileUpload } from '../../shared/utils/profile-upload.js';
 import * as controller from './user.controller.js';
-import { addFavouriteRequest, deleteAccountRequest, deleteFavouriteRequest, updateProfileRequest } from './user.validation.js';
+import { addFavouriteRequest, deleteAccountRequest, deleteFavouriteRequest, getUserRequest, updateProfileRequest } from './user.validation.js';
 
 const router = Router();
 
-router.get('/', authenticate, controller.getUser);
+router.get('/', authenticate, validate(getUserRequest), controller.getUser);
 router.post('/profile', authenticate, profileUpload.single('profile_picture'), validate(updateProfileRequest), controller.updateProfile);
 router.post('/delete-account', authenticate, validate(deleteAccountRequest), controller.deleteAccount);
 router.post('/add-favourite-location', authenticate, validate(addFavouriteRequest), controller.addFavourite);

@@ -14,7 +14,7 @@ export const updateProfile = asyncHandler(async (req, res) => {
 });
 
 export const getUser = asyncHandler(async (req, res) => {
-  const data = await userService.getUser(req.auth.userId);
+  const data = await userService.getUser(req.auth.userId, { currentRide: req.query.current_ride });
   return success(res, { message: 'OK', data });
 });
 

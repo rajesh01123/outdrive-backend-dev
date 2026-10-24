@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authenticateAdmin } from '../../middleware/authenticate-admin.js';
-import { authorizeAdmin } from '../../middleware/authorize-admin.js';
+import { requirePermission } from '../../middleware/authorize-admin.js';
 import { validate } from '../../middleware/validate.js';
 import { success } from '../../shared/responses/api-response.js';
 import { asyncHandler } from '../../shared/utils/async-handler.js';
@@ -8,8 +8,8 @@ import * as coupons from './admin-coupons.service.js';
 import * as rules from './admin-coupons.validation.js';
 
 const router = Router();
-const canView = authorizeAdmin('super_admin', 'operations', 'support');
-const canManage = authorizeAdmin('super_admin', 'operations');
+const canView = requirePermission('coupons.view');
+const canManage = requirePermission('coupons.manage');
 const ok = (message, load) => asyncHandler(async (req, res) => success(res, { message, data: await load(req) }));
 
 router.use(authenticateAdmin);

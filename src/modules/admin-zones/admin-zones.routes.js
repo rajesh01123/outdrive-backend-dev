@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authenticateAdmin } from '../../middleware/authenticate-admin.js';
-import { authorizeAdmin } from '../../middleware/authorize-admin.js';
+import { requirePermission } from '../../middleware/authorize-admin.js';
 import { validate } from '../../middleware/validate.js';
 import * as controller from './admin-zones.controller.js';
 import {
@@ -13,8 +13,8 @@ import {
 } from './admin-zones.validation.js';
 
 const router = Router();
-const canView = authorizeAdmin('super_admin', 'operations', 'support');
-const canManage = authorizeAdmin('super_admin', 'operations');
+const canView = requirePermission('zones.view');
+const canManage = requirePermission('zones.manage');
 
 // Zones are never deleted — bookings reference them — so "remove" means status inactive.
 router.use(authenticateAdmin);

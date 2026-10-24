@@ -25,13 +25,14 @@ const fitsTrip = (coupon, { moduleKey, zoneId }) =>
   && (!coupon.zoneIds?.length || !zoneId || coupon.zoneIds.map(Number).includes(Number(zoneId)));
 
 /** Uses per code (bookings that were not cancelled), optionally for one user: Map(code → count). */
-export const usesByCode = async (codes, userId) => {
+export const usesByCode = async (codes, userId, transaction) => {
   if (!codes.length) return new Map();
   const rows = await Booking.findAll({
     attributes: ['promoCode', [fn('COUNT', col('id')), 'uses']],
     where: { promoCode: codes, status: { [Op.notIn]: NOT_USED_STATUSES }, ...(userId ? { userId } : {}) },
     group: ['promoCode'],
-    raw: true
+    raw: true,
+    transaction
   });
   return new Map(rows.map((row) => [row.promoCode, Number(row.uses)]));
 };
@@ -45,15 +46,18 @@ export const couponDiscount = (coupon, fareTotal) => {
   return { amount: Math.min(Math.round(Math.min(raw, cap)), fareTotal), message: '' };
 };
 
-/** The coupon a user may apply to this trip, or the reason they cannot (same errors for ETA and booking). */
-export const findUsableCoupon = async ({ code, userId, moduleKey, zoneId }) => {
-  const coupon = await Coupon.findOne({ where: { code: normalizeCode(code) } });
+/**
+ * The coupon a user may apply to this trip, or the reason they cannot (same errors for ETA and booking).
+ * Inside a booking transaction the coupon row is locked, so two bookings cannot both take its last use.
+ */
+export const findUsableCoupon = async ({ code, userId, moduleKey, zoneId, transaction }) => {
+  const coupon = await Coupon.findOne({ where: { code: normalizeCode(code) }, ...(transaction ? { transaction, lock: transaction.LOCK.UPDATE } : {}) });
   if (!coupon || coupon.status !== 'active') throw promoError('invalid_promo_code', 'This promo code is not valid');
   if (!fitsTrip(coupon, { moduleKey, zoneId })) throw promoError('invalid_promo_code', 'This promo code is not valid for this ride');
   const state = couponState(coupon);
   if (state === 'scheduled') throw promoError('promo_expired', 'This promo code is not active yet');
   if (state === 'expired') throw promoError('promo_expired', 'This promo code has expired');
-  const [allUses, userUses] = await Promise.all([usesByCode([coupon.code]), usesByCode([coupon.code], userId)]);
+  const [allUses, userUses] = await Promise.all([usesByCode([coupon.code], null, transaction), usesByCode([coupon.code], userId, transaction)]);
   if (coupon.totalUsesLimit && (allUses.get(coupon.code) || 0) >= coupon.totalUsesLimit) {
     throw promoError('promo_usage_limit', 'This promo code has reached its limit');
   }

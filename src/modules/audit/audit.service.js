@@ -28,7 +28,8 @@ export const maskEmail = (email) => {
   return domain ? `${name.slice(0, 2)}${'*'.repeat(Math.max(1, name.length - 2))}@${domain}` : '';
 };
 
-export const adminActor = (admin) => ({ type: 'admin', id: admin.id, name: admin.name || maskEmail(admin.email), role: admin.role });
+// The role name is stored as it is at the time, so renaming or deleting a role never rewrites old logs.
+export const adminActor = (admin) => ({ type: 'admin', id: admin.id, name: admin.name || maskEmail(admin.email), role: admin.adminRole?.name || null });
 export const userActor = (user) => ({ type: 'user', id: user.id, name: user.name || maskMobile(user.mobile) });
 
 const SYSTEM_ACTOR = { type: 'system', id: null, name: 'System' };

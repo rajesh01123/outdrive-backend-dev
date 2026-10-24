@@ -3,6 +3,7 @@ import { OtpVerification } from './otp-verification.model.js';
 import { UserSession } from './user-session.model.js';
 import { Device } from './device.model.js';
 import { Admin } from './admin.model.js';
+import { AdminRole } from './admin-role.model.js';
 import { Driver } from './driver.model.js';
 import { AdminSession } from './admin-session.model.js';
 import { AdminOtpVerification } from './admin-otp-verification.model.js';
@@ -21,11 +22,14 @@ import { Banner } from './banner.model.js';
 import { CmsPage, Faq, SupportContact } from './cms.models.js';
 import { AuditLog } from './audit-log.model.js';
 import { Coupon, OnboardingSlide } from './promo.models.js';
+import { GoodsType } from './goods-type.model.js';
 
 User.hasMany(UserSession, { foreignKey: 'userId', as: 'sessions' });
 UserSession.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 User.hasMany(Device, { foreignKey: 'userId', as: 'devices' });
 Device.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+Admin.belongsTo(AdminRole, { foreignKey: 'roleId', as: 'adminRole' });
+AdminRole.hasMany(Admin, { foreignKey: 'roleId', as: 'staff' });
 Admin.hasMany(AdminSession, { foreignKey: 'adminId', as: 'sessions' });
 AdminSession.belongsTo(Admin, { foreignKey: 'adminId', as: 'admin' });
 Admin.hasMany(AdminOtpVerification, { foreignKey: 'adminId', as: 'otpVerifications' });
@@ -54,14 +58,16 @@ Booking.belongsTo(VehicleType, { foreignKey: 'vehicleTypeId', as: 'vehicleType' 
 Booking.belongsTo(Driver, { foreignKey: 'driverId', as: 'driver' });
 Booking.hasOne(BookingParcel, { foreignKey: 'bookingId', as: 'parcel' });
 BookingParcel.belongsTo(Booking, { foreignKey: 'bookingId', as: 'booking' });
+BookingParcel.belongsTo(GoodsType, { foreignKey: 'goodsTypeId', as: 'goodsType' });
+Booking.belongsTo(Coupon, { foreignKey: 'couponId', as: 'coupon' });
 
 User.hasMany(RecentSearch, { foreignKey: 'userId', as: 'recentSearches' });
 User.hasMany(FavouriteLocation, { foreignKey: 'userId', as: 'favouriteLocations' });
 CmsPage.belongsTo(Admin, { foreignKey: 'updatedBy', as: 'editor' });
 
 export {
-  User, OtpVerification, UserSession, Device, Admin, Driver, AdminSession, AdminOtpVerification,
+  User, OtpVerification, UserSession, Device, Admin, AdminRole, Driver, AdminSession, AdminOtpVerification,
   Service, Zone, ZoneService, VehicleType, ServiceVehicleType, ZoneVehicleFare, FareHistory, Booking, BookingParcel,
   RecentSearch, FavouriteLocation, Banner, CmsPage, Faq, SupportContact, AuditLog,
-  OnboardingSlide, Coupon
+  OnboardingSlide, Coupon, GoodsType
 };

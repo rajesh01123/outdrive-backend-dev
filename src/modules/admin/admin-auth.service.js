@@ -7,17 +7,23 @@ import { env } from '../../config/env.js';
 import { AdminOtpVerification, AdminSession } from '../../database/models/index.js';
 import { AppError } from '../../shared/utils/app-error.js';
 import { latestAdminOtp } from './admin.repository.js';
+import { adminRoleName, isSuperAdmin, rolePermissionsPayload } from './admin-access.js';
 import { publicProfilePictureUrl } from '../../shared/utils/serializers.js';
 
 const hash = (value) => crypto.createHash('sha256').update(value).digest('hex');
 
+// The admin must be loaded with their role (ROLE_INCLUDE); the panel uses `permissions` to show menus and buttons.
 const adminPayload = (admin) => ({
   id: `a_${admin.id}`,
   name: admin.name,
   email: admin.email,
   mobile: admin.mobile || '',
   profile_picture: publicProfilePictureUrl(admin.profilePicture),
-  role: admin.role,
+  role: adminRoleName(admin),
+  role_id: Number(admin.roleId),
+  is_super_admin: isSuperAdmin(admin),
+  permissions: rolePermissionsPayload(admin),
+  must_change_password: Boolean(admin.mustChangePassword),
   two_factor_enabled: Boolean(admin.twoFactorEnabled),
   two_factor_method: admin.twoFactorMethod || 'email'
 });
@@ -51,7 +57,7 @@ export const verifyAdminChallenge = (token, expectedType) => {
 export const issueAdminSession = async ({ admin, device, requestMeta, transaction }) => {
   const jti = crypto.randomUUID();
   const accessToken = jwt.sign(
-    { sub: String(admin.id), jti, type: 'admin', role: admin.role },
+    { sub: String(admin.id), jti, type: 'admin' },
     env.adminAuth.jwtSecret,
     adminTokenOptions
   );

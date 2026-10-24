@@ -55,3 +55,10 @@ export const deleteFavouriteRequest = (req) => {
   if (!raw) validationError('id', 'id is required');
   req.favouriteId = raw;
 };
+
+// GET /user?current_ride=req_1001 (optional).
+export const getUserRequest = (req) => {
+  const value = typeof req.query.current_ride === 'string' ? req.query.current_ride.trim() : '';
+  if (value.length > 30) validationError('current_ride', 'current_ride must be a request id like req_1001');
+  req.query.current_ride = value;
+};

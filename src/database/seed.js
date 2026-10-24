@@ -3,6 +3,7 @@ import { seedAdmin } from './seeds/admin.seed.js';
 import { seedBanners } from './seeds/banners.seed.js';
 import { seedCms } from './seeds/cms.seed.js';
 import { seedCoupons } from './seeds/coupons.seed.js';
+import { seedGoodsTypes } from './seeds/goods-types.seed.js';
 import { seedRideSetup } from './seeds/ride-setup.seed.js';
 import { seedServices } from './seeds/services.seed.js';
 
@@ -14,7 +15,8 @@ const steps = [
   ['Ride setup (vehicles, mapping, zone, fares)', seedRideSetup],
   ['Home banners', seedBanners],
   ['Content pages, FAQs, support contacts', seedCms],
-  ['Demo coupons', seedCoupons]
+  ['Demo coupons', seedCoupons],
+  ['Parcel goods types', seedGoodsTypes]
 ];
 
 const seed = async () => {

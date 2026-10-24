@@ -44,7 +44,16 @@ Booking.init(
     fareBreakdown: jsonColumn('fareBreakdown', { field: 'fare_breakdown' }),
     cancelledBy: { type: DataTypes.ENUM('user', 'admin', 'driver', 'system'), allowNull: true, field: 'cancelled_by' },
     cancelReason: { type: DataTypes.STRING(500), allowNull: true, field: 'cancel_reason' },
-    cancelledAt: { type: DataTypes.DATE, allowNull: true, field: 'cancelled_at' }
+    cancelledAt: { type: DataTypes.DATE, allowNull: true, field: 'cancelled_at' },
+    couponId: { type: DataTypes.BIGINT.UNSIGNED, allowNull: true, field: 'coupon_id' },
+    subtotalAmount: { type: DataTypes.DECIMAL(10, 2), allowNull: true, field: 'subtotal_amount' },
+    promoDiscount: { type: DataTypes.DECIMAL(10, 2), allowNull: false, defaultValue: 0, field: 'promo_discount' },
+    requestEtaAmount: { type: DataTypes.DECIMAL(10, 2), allowNull: true, field: 'request_eta_amount' },
+    returnAt: { type: DataTypes.DATE, allowNull: true, field: 'return_at' },
+    pickupInstruction: { type: DataTypes.STRING(255), allowNull: true, field: 'pickup_instruction' },
+    bookForOther: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false, field: 'book_for_other' },
+    otherContactName: { type: DataTypes.STRING(80), allowNull: true, field: 'other_contact_name' },
+    otherContactMobile: { type: DataTypes.STRING(15), allowNull: true, field: 'other_contact_mobile' }
   },
   { sequelize, modelName: 'Booking', tableName: 'tbl_bookings' }
 );

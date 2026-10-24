@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authenticateAdmin } from '../../middleware/authenticate-admin.js';
-import { authorizeAdmin } from '../../middleware/authorize-admin.js';
+import { requirePermission } from '../../middleware/authorize-admin.js';
 import { validate } from '../../middleware/validate.js';
 import { success } from '../../shared/responses/api-response.js';
 import { asyncHandler } from '../../shared/utils/async-handler.js';
@@ -9,8 +9,8 @@ import * as slides from './admin-onboarding.service.js';
 import * as rules from './admin-onboarding.validation.js';
 
 const router = Router();
-const canView = authorizeAdmin('super_admin', 'operations', 'support');
-const canManage = authorizeAdmin('super_admin', 'operations');
+const canView = requirePermission('content.view');
+const canManage = requirePermission('content.manage');
 const imageUpload = createImageUpload({ folder: 'onboarding', field: 'image', maxSizeMb: 2 }).single('image');
 const ok = (message, load) => asyncHandler(async (req, res) => success(res, { message, data: await load(req) }));
 const image = (req) => storedUploadPath('onboarding', req.file);
