@@ -17,7 +17,7 @@ Every example below is a **real response** captured from the API. Envelope, auth
 
 ```
 Login → GET /user                        (favourites come nested in favouriteLocations.data)
-      → GET /common/banners              (home banners)
+      → GET /common/banners?type=user    (home banners)
       → HOME-04 list recent searches     (shown under the "Where to?" box)
       → HOME-05 save a search            (after the user picks pickup + drop)
       → HOME-06 / HOME-07 favourites     (then refresh GET /user)
@@ -625,12 +625,14 @@ Also accepted (older builds): `POST /user/delete-favourite-location` with body `
 
 | Query | Type | Rule |
 |---|---|---|
+| `type` | string | `user` (default) for the rider app, `driver` for the driver app |
 | `limit` | number | 1–20, default 10 |
-| `module_key` | string | Optional — only that module's banners. Omit for all banners |
 
-Only **live** banners are returned: status active **and** inside their dates (`starts_at` ≤ now ≤ `ends_at`, empty = no limit). Order is the admin's order. Banners are managed in admin → **Banners**; recommended image size **1200 × 600**.
+A banner is only an image. Every banner of the requested type is returned, in the admin's order (left to right). Banners are managed in admin → **Banners**; image size **1200 × 600** (2:1).
 
-### 200
+> **Changed (Oct 2026):** banners no longer have `title`, `subtitle`, `module_key`, `link_type`, `link_value`, `starts_at` or `ends_at`, and the `module_key` query is ignored. A new `type` field was added. See *Changes for the app* below.
+
+### 200 — user app (`GET /common/banners`)
 
 ```json
 {
@@ -641,119 +643,67 @@ Only **live** banners are returned: status active **and** inside their dates (`s
       "id": "b_1",
       "image": "https://outdrivebackend.cyberimpulses.com/uploads/banners/0fd399ba-7e3b-4068-8d46-70be704c6944.webp",
       "image_url": "https://outdrivebackend.cyberimpulses.com/uploads/banners/0fd399ba-7e3b-4068-8d46-70be704c6944.webp",
-      "title": "Ride across the city",
-      "subtitle": "Book a One Way ride in seconds",
-      "active": true,
+      "type": "user",
       "order_by": 1,
-      "module_key": "",
-      "link_type": "module",
-      "link_value": "one_way",
-      "starts_at": "",
-      "ends_at": ""
+      "active": true
     },
     {
       "id": "b_2",
       "image": "https://outdrivebackend.cyberimpulses.com/uploads/banners/3cf18988-d6a4-45d2-868c-5573b98e9f7e.webp",
       "image_url": "https://outdrivebackend.cyberimpulses.com/uploads/banners/3cf18988-d6a4-45d2-868c-5573b98e9f7e.webp",
-      "title": "Outstation trips",
-      "subtitle": "Indore to Bhopal, Ujjain and more",
-      "active": true,
+      "type": "user",
       "order_by": 2,
-      "module_key": "",
-      "link_type": "module",
-      "link_value": "outstation",
-      "starts_at": "",
-      "ends_at": ""
+      "active": true
     },
     {
       "id": "b_3",
       "image": "https://outdrivebackend.cyberimpulses.com/uploads/banners/9ab5709e-df06-4fa7-9cc9-ff0220cb2028.webp",
       "image_url": "https://outdrivebackend.cyberimpulses.com/uploads/banners/9ab5709e-df06-4fa7-9cc9-ff0220cb2028.webp",
-      "title": "Send a parcel",
-      "subtitle": "Fast delivery on bike or 3 wheeler",
-      "active": true,
+      "type": "user",
       "order_by": 3,
-      "module_key": "",
-      "link_type": "module",
-      "link_value": "parcel_bike",
-      "starts_at": "",
-      "ends_at": ""
+      "active": true
     }
   ]
 }
 ```
 
-### 200 — limit
-
-`GET /common/banners?limit=1`
+### 200 — driver app, none added yet (`GET /common/banners?type=driver`)
 
 ```json
-{
-  "success": true,
-  "message": "OK",
-  "data": [
-    {
-      "id": "b_1",
-      "image": "https://outdrivebackend.cyberimpulses.com/uploads/banners/0fd399ba-7e3b-4068-8d46-70be704c6944.webp",
-      "image_url": "https://outdrivebackend.cyberimpulses.com/uploads/banners/0fd399ba-7e3b-4068-8d46-70be704c6944.webp",
-      "title": "Ride across the city",
-      "subtitle": "Book a One Way ride in seconds",
-      "active": true,
-      "order_by": 1,
-      "module_key": "",
-      "link_type": "module",
-      "link_value": "one_way",
-      "starts_at": "",
-      "ends_at": ""
-    }
-  ]
-}
-```
-
-### 200 — no banner for that module
-
-`GET /common/banners?module_key=shared`
-
-```json
-{
-  "success": true,
-  "message": "OK",
-  "data": []
-}
+{ "success": true, "message": "OK", "data": [] }
 ```
 
 ### Response fields
 
 | Field | Type | Meaning |
 |---|---|---|
-| `id` | string | `b_<number>` |
-| `image`, `image_url` | string | Same full image URL (both kept for compatibility) |
-| `title`, `subtitle` | string | Text for the banner; `subtitle` may be `""` |
-| `active` | boolean | Always `true` (only live banners are returned) |
-| `order_by` | number | Display order |
-| `module_key` | string | `""` = general home banner, else the module it belongs to |
-| `link_type` | string | `none` (no tap action) \| `module` (open the module in `link_value`) \| `url` (open the website in `link_value`) |
-| `link_value` | string | Module key or https URL; `""` for `none` |
-| `starts_at`, `ends_at` | string | ISO time, or `""` when not set |
+| `id` | string | `"b_<number>"` |
+| `image`, `image_url` | string | The same full image URL (two keys for older app code) |
+| `type` | string | `user` or `driver` |
+| `order_by` | number | Display order, ascending; the list is already sorted |
+| `active` | boolean | Always `true` |
+
+### Changes for the app (give this to the Flutter developer)
+
+| Before | Now |
+|---|---|
+| `title`, `subtitle` | **Removed**: the banner image carries its own text |
+| `module_key`, `link_type`, `link_value` | **Removed**: tapping a banner does nothing; there is no link |
+| `starts_at`, `ends_at` | **Removed**: every banner in the list is live |
+| `?module_key=` query | **Ignored**: the same list is returned |
+| — | **New** `type` field and `?type=user\|driver` query (default `user`) |
+| `id`, `image`, `image_url`, `order_by`, `active` | Unchanged |
 
 ### Errors
 
 ```json
-{
-  "success": false,
-  "message": "validation_error",
-  "data": {
-    "errors": {
-      "limit": "limit must be a whole number between 1 and 20"
-    }
-  }
-}
+{ "success": false, "message": "validation_error", "data": { "errors": { "type": "type must be user or driver" } } }
 ```
 
 ```json
-{
-  "success": false,
-  "message": "invalid_or_expired_token",
-  "data": {}
-}
+{ "success": false, "message": "validation_error", "data": { "errors": { "limit": "limit must be a whole number between 1 and 20" } } }
+```
+
+```json
+{ "success": false, "message": "invalid_or_expired_token", "data": {} }
 ```

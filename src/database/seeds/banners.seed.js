@@ -7,12 +7,8 @@ import { uploadDirectory } from '../../shared/utils/image-upload.js';
 
 const assetsDir = path.join(path.dirname(fileURLToPath(import.meta.url)), 'assets', 'banners');
 
-// Demo home banners (1200×600). Replace them from admin → Banners.
-const banners = [
-  { title: 'Ride across the city', subtitle: 'Book a One Way ride in seconds', linkType: 'module', linkValue: 'one_way', asset: 'city-rides.webp' },
-  { title: 'Outstation trips', subtitle: 'Indore to Bhopal, Ujjain and more', linkType: 'module', linkValue: 'outstation', asset: 'outstation.webp' },
-  { title: 'Send a parcel', subtitle: 'Fast delivery on bike or 3 wheeler', linkType: 'module', linkValue: 'parcel_bike', asset: 'parcel.webp' }
-];
+// Demo user-app banners (1200×600). Replace them from admin → Banners.
+const banners = ['city-rides.webp', 'outstation.webp', 'parcel.webp'];
 
 const copyAsset = async (asset) => {
   const fileName = `${crypto.randomUUID()}${path.extname(asset)}`;
@@ -27,8 +23,8 @@ export const seedBanners = async () => {
     console.info('  Banners already set up.');
     return;
   }
-  for (const [index, { asset, ...banner }] of banners.entries()) {
-    await Banner.create({ ...banner, image: await copyAsset(asset), sortOrder: index + 1, status: 'active' });
-    console.info(`  Seeded banner "${banner.title}".`);
+  for (const [index, asset] of banners.entries()) {
+    await Banner.create({ type: 'user', image: await copyAsset(asset), sortOrder: index + 1 });
   }
+  console.info(`  Seeded ${banners.length} user-app banners.`);
 };

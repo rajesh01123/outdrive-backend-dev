@@ -336,15 +336,15 @@ Object.assign(openApiSpec.paths, {
 // ---------- Rider app: recent searches, favourites, banners + admin banners ----------
 const recentExample = { id: 12, user_id: 7, pick_lat: 22.6867, pick_lng: 75.8715, drop_lat: 22.7171, drop_lng: 75.8683, pick_address: '301, Atulya IT Park, Indore', pick_short_address: 'Atulya IT Park', drop_address: 'Bhawarkuan Square, Indore', drop_short_address: 'Bhawarkuan Square', pickup_poc_name: '', pickup_poc_mobile: '', pickup_poc_instruction: '', drop_poc_name: '', drop_poc_mobile: '', drop_poc_instruction: '', total_distance: 4.2, total_time: 12, poly_line: '', transport_type: 'taxi', module_key: 'one_way', searchStops: { data: [] }, created_at: '2026-10-23T08:10:00.000Z' };
 const favouriteExample = { id: 'f_91', pick_lat: '22.7196', pick_lng: '75.8577', drop_lat: '', drop_lng: '', pick_address: 'Rajwada, Indore, Madhya Pradesh', drop_address: '', address_name: 'Home', landmark: 'Near gate 2' };
-const bannerExample = { id: 'b_1', image: 'https://outdrivebackend.cyberimpulses.com/uploads/banners/offer1.webp', image_url: 'https://outdrivebackend.cyberimpulses.com/uploads/banners/offer1.webp', title: 'Flat 20% off', subtitle: 'On your first bike ride', active: true, order_by: 1, module_key: '', link_type: 'none', link_value: '', starts_at: '2026-10-01T00:00:00.000Z', ends_at: '2026-12-31T23:59:59.000Z' };
-const adminBannerExample = { id: 1, title: 'Flat 20% off', subtitle: 'On your first bike ride', image: bannerExample.image, module_key: '', link_type: 'none', link_value: '', sort_order: 1, status: 'active', state: 'live', starts_at: null, ends_at: null };
+const bannerExample = { id: 'b_1', image: 'https://outdrivebackend.cyberimpulses.com/uploads/banners/offer1.webp', image_url: 'https://outdrivebackend.cyberimpulses.com/uploads/banners/offer1.webp', type: 'user', order_by: 1, active: true };
+const adminBannerExample = { id: 1, image: bannerExample.image, type: 'user', sort_order: 1, created_at: '2026-10-23T10:46:27.000Z', updated_at: '2026-10-24T07:44:01.000Z' };
 const userOk = (message, data) => json(success(message, data), { success: true, message, data });
-const bannerForm = (required) => ({ required: true, content: { 'multipart/form-data': { schema: { type: 'object', required, properties: { title: { type: 'string', example: 'Flat 20% off' }, subtitle: { type: 'string' }, module_key: { type: 'string', description: 'Empty = all (home)' }, link_type: { type: 'string', enum: ['none', 'module', 'url'] }, link_value: { type: 'string', description: 'module_key for module, https URL for url' }, starts_at: { type: 'string', example: '2026-10-23 10:00', description: 'IST when no offset; empty = right away' }, ends_at: { type: 'string', description: 'IST when no offset; empty = no end' }, status: { type: 'string', enum: ['active', 'inactive'] }, image: { type: 'string', format: 'binary', description: 'JPEG, PNG or WebP; max 2 MB; 1200x600' } } } } } });
+const bannerForm = (required) => ({ required: true, content: { 'multipart/form-data': { schema: { type: 'object', required, properties: { type: { type: 'string', enum: ['user', 'driver'], description: 'Which app shows it; changing it moves the banner to the end of that list' }, image: { type: 'string', format: 'binary', description: 'JPEG, PNG or WebP; max 2 MB; 1200x600' } } } } } });
 
 openApiSpec.tags.push(
   { name: 'Recent searches', description: 'Rider app pick/drop history (max 20 per user, newest first)' },
   { name: 'Favourites', description: 'Saved places (Home, Work, custom); max 15 per user' },
-  { name: 'Admin banners', description: 'Home banners. View: all roles; changes: super_admin, operations' }
+  { name: 'Admin banners', description: 'Banner images for the user app and the driver app. View: all roles; changes: super_admin, operations' }
 );
 
 openApiSpec.paths['/user'].get.summary = 'AUTH-07 — get authenticated user (includes favouriteLocations.data)';
@@ -384,18 +384,17 @@ Object.assign(openApiSpec.paths, {
     responses: { 200: userOk('favourite_deleted', { id: 'f_91' }), 403: { description: 'forbidden' }, 404: { description: 'favourite_not_found' }, 422: { description: 'validation_error' } }
   } },
   '/common/banners': { get: {
-    tags: ['Common'], summary: 'Home banners — live only (active and inside their dates), in admin order. Token optional',
+    tags: ['Common'], summary: 'Home banners (images) for one app, in admin order. Token optional',
     security: [{}, { bearerAuth: [] }],
-    parameters: [{ name: 'limit', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 20, default: 10 } }, { name: 'module_key', in: 'query', schema: { type: 'string' }, description: 'Only that module’s banners; omit for all' }],
-    responses: { 200: userOk('OK', [bannerExample]), 401: { description: 'A token was sent but it is invalid' }, 422: { description: 'validation_error' } }
+    parameters: [{ name: 'type', in: 'query', schema: { type: 'string', enum: ['user', 'driver'], default: 'user' } }, { name: 'limit', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 20, default: 10 } }],
+    responses: { 200: userOk('OK', [bannerExample]), 401: { description: 'A token was sent but it is invalid' }, 422: { description: 'validation_error (type, limit)' } }
   } },
   '/admin/banners': {
-    get: { tags: ['Admin banners'], summary: 'All banners with live/scheduled/expired/inactive stats', security: adminBearer, responses: { 200: adminSuccess('OK', { stats: { total: 3, live: 3, scheduled: 0, expired: 0, inactive: 0 }, banners: [adminBannerExample] }) } },
-    post: { tags: ['Admin banners'], summary: 'Create a banner (image required); added at the end', security: adminBearer, requestBody: bannerForm(['title', 'image']), responses: { 201: adminSuccess('banner_created', { banner: adminBannerExample }), 403: { description: 'admin_forbidden' }, 422: { description: 'validation_error / image_* upload errors' } } }
+    get: { tags: ['Admin banners'], summary: 'All banners (user app first) with counts per app', security: adminBearer, responses: { 200: adminSuccess('OK', { stats: { total: 4, user: 3, driver: 1 }, banners: [adminBannerExample] }) } },
+    post: { tags: ['Admin banners'], summary: 'Add a banner (image + type); added at the end of that app list', security: adminBearer, requestBody: bannerForm(['type', 'image']), responses: { 201: adminSuccess('banner_created', { banner: adminBannerExample }), 403: { description: 'admin_forbidden' }, 422: { description: 'validation_error / image_* upload errors' } } }
   },
-  '/admin/banners/{id}/update': { post: { tags: ['Admin banners'], summary: 'Edit a banner; image optional (old file removed when replaced)', security: adminBearer, parameters: idParam(), requestBody: bannerForm([]), responses: { 200: adminSuccess('banner_updated', { banner: adminBannerExample }), 404: { description: 'banner_not_found' } } } },
-  '/admin/banners/{id}/status': { post: { tags: ['Admin banners'], summary: 'Active or inactive', security: adminBearer, parameters: idParam(), requestBody: adminJsonBody({ type: 'object', required: ['status'], properties: { status: { type: 'string', enum: ['active', 'inactive'] } } }), responses: { 200: adminSuccess('banner_status_updated', { banner: adminBannerExample }) } } },
-  '/admin/banners/reorder': { post: { tags: ['Admin banners'], summary: 'Save display order; ids must list every banner once', security: adminBearer, requestBody: adminJsonBody({ type: 'object', required: ['ids'], properties: { ids: { type: 'array', items: { type: 'integer' } } } }), responses: { 200: adminSuccess('banners_reordered', { banners: [adminBannerExample] }) } } },
+  '/admin/banners/{id}/update': { post: { tags: ['Admin banners'], summary: 'Replace the image and/or change the type (old file removed when replaced)', security: adminBearer, parameters: idParam(), requestBody: bannerForm([]), responses: { 200: adminSuccess('banner_updated', { banner: adminBannerExample }), 404: { description: 'banner_not_found' } } } },
+  '/admin/banners/reorder': { post: { tags: ['Admin banners'], summary: 'Save the order of one app banners; ids must list every banner of that type once', security: adminBearer, requestBody: adminJsonBody({ type: 'object', required: ['type', 'ids'], properties: { type: { type: 'string', enum: ['user', 'driver'] }, ids: { type: 'array', items: { type: 'integer' } } } }), responses: { 200: adminSuccess('banners_reordered', { banners: [adminBannerExample] }) } } },
   '/admin/banners/{id}/delete': { post: { tags: ['Admin banners'], summary: 'Delete a banner and its image', security: adminBearer, parameters: idParam(), responses: { 200: adminSuccess('banner_deleted', { id: 1 }), 404: { description: 'banner_not_found' } } } }
 });
 

@@ -71,7 +71,7 @@ router.get('/cancel-policy', validate(cancelPolicyRequest), asyncHandler(async (
 
 // Home banners — token optional; only active banners inside their date window, in admin order.
 router.get('/banners', optionalAuthenticate, validate(publicBannersRequest), asyncHandler(async (req, res) => {
-  const data = await listLiveBanners({ limit: req.query.limit, moduleKey: req.query.module_key });
+  const data = await listLiveBanners({ limit: req.query.limit, type: req.query.type });
   return success(res, { message: 'OK', data });
 }));
 
